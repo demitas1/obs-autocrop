@@ -1,0 +1,53 @@
+[platform]
+obs_flavor = "native"                    # native | flatpak（Linux 実装が解釈する）
+
+[obs]
+config_dir  = "~/.config/obs-studio"      # Flatpak 版: ~/.var/app/com.obsproject.Studio/config/obs-studio
+launch_cmd  = ["obs"]                     # Flatpak 版: ["flatpak", "run", "com.obsproject.Studio"]
+extra_args  = []                          # 例: ["--disable-shutdown-check"]
+collection  = ""                          # 空の場合は現在のコレクションを使う
+scene       = ""                          # 起動時のシーン（任意）
+ready_timeout_s = 30
+
+[obs.websocket]
+host = "localhost"
+port = 4455
+password = ""                             # 空の場合は plugin_config から読む
+
+[target]
+source_name = "Camera"
+source_uuid = ""                          # 任意。指定した場合はこちらを優先する
+filter_name = "Crop/Pad"
+
+[camera]
+by_id = ""
+by_path = ""
+vendor_id = ""
+product_id = ""
+name = ""
+device_id_mode = "resolved"               # resolved | link | none
+
+[camera.format]                           # OBS 側が -1 の場合に使う
+width = 1920
+height = 1080
+fourcc = "MJPG"
+fps = 30
+
+[camera.controls]                         # 名前は devices controls で確認する
+# focus_automatic_continuous = 0
+# focus_absolute = 0
+# zoom_absolute = 100
+# auto_exposure = 1
+
+[markers]
+dictionary = "DICT_4X4_50"
+ids = [0, 1, 2, 3]                        # 左上, 右上, 右下, 左下
+target_px = 50
+quiet_zone_cells = 2
+
+[measure]
+warmup_frames = 30
+measure_frames = 10
+min_valid = 5
+margin_px = 0
+skew_tol_ratio = 0.01

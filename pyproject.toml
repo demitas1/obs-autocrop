@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obs-autocrop"
+version = "0.0.1"
+description = "Control OBS Crop/Pad filter from Python, with ArUco-based auto measurement"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+    "obsws-python",
+    "opencv-python-headless>=4.8",
+    "numpy",
+    "pyudev; sys_platform == 'linux'",
+    "psutil",
+    "Pillow",
+    "tomli; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

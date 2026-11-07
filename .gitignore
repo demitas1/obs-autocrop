@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+
+# Runtime output (PLAN.md 付録A)
+backups/
+logs/
+
+# Local config (config.example.toml をコピーして使う)
+config.toml
+
+# Experiment output
+experiments/out/
+
+# Claude Code
+claude-resume.sh
+.claude/settings.local.json
