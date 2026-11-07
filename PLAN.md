@@ -159,6 +159,10 @@
 | websocket 設定 | `plugin_config/obs-websocket/config.json`（要確認） | 同左 |
 | 起動コマンド | `obs` | `flatpak run com.obsproject.Studio` |
 
+- **E0 で確認（OBS 32.2.0 PPA 版）**:
+  - 現在のコレクション名は `user.ini` の `[Basic] SceneCollection` / `SceneCollectionFile` にある。`global.ini` には `[Basic]` がない。
+  - `global.ini` に `[Locations]`（`Configuration`、`SceneCollections`、`Profiles`、`PluginManagerSettings`）がある。値は `obs-studio` の親ディレクトリ（既定では `~/.config`）。シーンコレクションは `<SceneCollections>/obs-studio/basic/scenes/` から探す。`ObsPaths` はこのキーを優先し、無ければ設定ルートを使う。
+  - websocket 設定は `plugin_config/obs-websocket/config.json` で確定。キーは `server_enabled`、`server_port`、`server_password`、`auth_required`、`alerts_enabled`、`first_load`。
 - `config.toml` の `obs.config_dir` と `obs.launch_cmd` で切り替える。
 - websocket の接続情報（ポート、パスワード）は `config.toml` に書くのを基本とする。省略した場合は `plugin_config/obs-websocket/config.json` から読む（キー名は E1 で要確認）。
 
@@ -200,6 +204,11 @@
 - シーンも `sources` の要素であり、`id: "scene"` で区別される。シーンアイテムは `settings.items` にある。
 - `resolution`、`pixelformat`、`framerate` が `-1` の場合は「変更しない」を意味する（9章）。
 - 未知のキーはすべて保持し、変更するキー以外には手を触れない。
+- **E0 で確認（OBS 32.2.0）**:
+  - OBS は既定値と同じ設定を JSON に書かない。実環境の `v4l2_input` の `settings` は `{device_id, input, pixelformat}` だけで、`resolution` と `framerate` のキーは**存在しない**。v4l2 プラグインの既定値は `-1` なので、**キーがない場合は `-1` と同じに扱う**（デコード結果は `None`）。書き込むときはキーを追加する。
+  - Crop/Pad フィルタは `relative: true` で `left` / `top` / `right` / `bottom`（各辺からの削り量）を保存していた。`cx` / `cy` のキーはない。読み取りは両方の形式に対応し、適用時（websocket）は 6.3 のとおり `relative=false` + `cx` / `cy` で送る。
+  - ソース名は OBS の既定の `Video Capture Device (V4L2)` だった（`config.toml` の `target.source_name` で指定する）。
+  - シーンアイテムは `name` と `source_uuid` の両方を持つ。トップレベルに `canvases`（OBS 32、現状は空配列）がある。
 
 ### 4.3 対象の指定
 - 対象は `source_name` と `filter_name` の組で指定する。`source_uuid` も指定できるようにし、指定されていればこちらを優先する（名前の変更に強くするため）。
@@ -308,6 +317,7 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 
 - `is_obs_running() -> bool`
   - psutil でプロセス名 `obs` を探す。Flatpak 版では `cmdline` に `com.obsproject.Studio` を含むかも確認する。
+  - E0 で確認（PPA 版）: `name="obs"`、`exe="/usr/bin/obs"`、`cmdline=["/usr/bin/obs"]`。プロセス名での判定で足りる。
 - `launch(collection, scene=None, extra_args=())`
   - `launch_cmd + ["--collection", collection] (+ ["--scene", scene])` を実行する。
   - `subprocess.Popen(..., start_new_session=True)` で起動し、出力は `logs/obs-<タイムスタンプ>.log` に書き出す。
@@ -573,7 +583,15 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 
 | 日付 | 実験 | 結果 | 本書への反映 |
 |---|---|---|---|
-| | | | |
+| 2026-11-07 | E0 | OBS 32.2.0（PPA、`/usr/bin/obs`）。Ubuntu 24.04.5、Python 3.12.3、OpenCV 5.0.0（`cv2.aruco.ArucoDetector` 使用可）。設定ルート `~/.config/obs-studio`。現在のコレクションは `user.ini` → `Untitled.json` | 4.1 に `user.ini` と `[Locations]` を追記 |
+| 2026-11-07 | E0 | websocket: `config.json` のキーを確認。**`server_enabled=false`**（E1 の前に OBS の「ツール → WebSocket サーバー設定」で有効化が必要）。`auth_required=true`、ポート 4455 | 4.1 に追記 |
+| 2026-11-07 | E0 | `v4l2_input` の `settings` に `resolution` / `framerate` のキーがない（既定値 `-1` は保存されない）。`pixelformat`=MJPG。Crop/Pad は `relative=true` の4辺形式で保存 | 4.2 に追記。キーなし ≡ `-1` |
+| 2026-11-07 | E0 | フィルタ順: `[0] Crop/Pad`、`[1] Color Correction`。Crop/Pad の前に映像フィルタはない | なし |
+| 2026-11-07 | E0 | OBS プロセスは `name=obs`、`cmdline=["/usr/bin/obs"]` | 6.4 に追記 |
+| 2026-11-07 | E0 | カメラ AC410（`f326:1306`、シリアル `HU12321178`）。`/dev/video0`（index0、capture）と `/dev/video1`（index1、メタデータ。`ID_V4L_CAPABILITIES=":"`）。5.1 のフィルタ条件で正しく除外できる | なし |
+| 2026-11-07 | E0 | by-path は `...-usb-0:2:1.0-...` と `...-usbv2-0:2:1.0-...` の2種類のリンクがある（udev の新旧形式）。by-id は1つ | E3 で両方の解決を確認する |
+| 2026-11-07 | E0 | USB 2.0（480Mbps）接続。1080p は YUYV が 5fps、MJPG が 30/60fps → **MJPG が必須**。MJPG は最大 4000×3000@15fps、3840×2160@30fps まで対応（1080p はこのカメラの最大解像度ではない）。OBS 起動中の現在のフォーマットは 1920×1080 MJPG 30fps | `[camera.format]` の既定値（1080p MJPG 30fps）はそのまま |
+| 2026-11-07 | E0 | コントロール名: `focus_automatic_continuous`、`focus_absolute`(0–1023)、`zoom_absolute`(0–100)、`auto_exposure`(menu 0–3、既定 3=Aperture Priority)、`exposure_time_absolute`、`white_balance_automatic`、`white_balance_temperature`、`pan_absolute` / `tilt_absolute` | 付録B のコメント例と一致 |
 
 ---
 
