@@ -241,8 +241,15 @@
 [camera]
 by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 1
 # by_path = "pci-0000:00:14.0-usb-0:2:1.0-video-index0"             # 優先度 2
-# vendor_id = "046d"; product_id = "085c"; name = "C922 Pro Stream Webcam"  # 優先度 3
+# vendor_id = "046d"                                                # 優先度 3
+# product_id = "085c"
+# serial = "ABCD1234"                                               # 任意。同一機種が複数ある場合
+# name = "C922 Pro Stream Webcam"                                   # 任意
 ```
+
+- 複数指定した場合は、優先度の最も高いものだけを使う（下位へのフォールバックはしない）。
+- `by_id` / `by_path` はリンク名でもフルパス（`/dev/v4l/by-id/...`）でもよい。
+- by-path には `...-usb-0:2:1.0-...` と `...-usbv2-0:2:1.0-...` の2形式のリンクがある（E3 で確認）。どちらを指定しても解決できる。
 
 - `config.toml` の `[camera]` の各項目は、`CameraIdentity` に読み込む。
   - `by_id` は `kind="by-id"`、`by_path` は `kind="by-path"`、`vendor_id` などは `kind="usb"` として扱う。
@@ -592,6 +599,8 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-07 | E0 | by-path は `...-usb-0:2:1.0-...` と `...-usbv2-0:2:1.0-...` の2種類のリンクがある（udev の新旧形式）。by-id は1つ | E3 で両方の解決を確認する |
 | 2026-11-07 | E0 | USB 2.0（480Mbps）接続。1080p は YUYV が 5fps、MJPG が 30/60fps → **MJPG が必須**。MJPG は最大 4000×3000@15fps、3840×2160@30fps まで対応（1080p はこのカメラの最大解像度ではない）。OBS 起動中の現在のフォーマットは 1920×1080 MJPG 30fps | `[camera.format]` の既定値（1080p MJPG 30fps）はそのまま |
 | 2026-11-07 | E0 | コントロール名: `focus_automatic_continuous`、`focus_absolute`(0–1023)、`zoom_absolute`(0–100)、`auto_exposure`(menu 0–3、既定 3=Aperture Priority)、`exposure_time_absolute`、`white_balance_automatic`、`white_balance_temperature`、`pan_absolute` / `tilt_absolute` | 付録B のコメント例と一致 |
+| 2026-11-07 | E3 | 3 方式（by-id / by-path / VID:PID+name）を単独で解決。基準（OBS 起動中）、同一ポート抜き差し（OBS 起動中）、別ポート（`usb-0:2:1.0` → `usb-0:3:1.0`、同一コントローラ `0000:09:00.3`）、元のポートに戻す、再起動（boot_id 変化を確認）の5状態で検証。by-id と usb は全状態で `/dev/video0`（serial 一致）。by-path は別ポートでのみ `CameraNotFound`（想定どおり）、新ポートの `usbv2-` 形式の path では解決できた。**完了条件を満たした** | 5.2 に指定方法の補足、`[camera]` に `serial` を追加（付録B） |
+| 2026-11-07 | E3 | 注意: カメラが1台のため、全状態でノードは `/dev/video0` のままで、ノード番号が変わるケースは再現できなかった。OBS 起動中の抜き差しでも番号はずれなかった（OBS がデバイスを閉じたためと思われる）。複数カメラでの曖昧さ（`CameraAmbiguous`）とシリアルによる区別は単体テストでのみ確認 | なし |
 
 ---
 
@@ -649,6 +658,7 @@ by_id = ""
 by_path = ""
 vendor_id = ""
 product_id = ""
+serial = ""                               # 同一機種が複数ある場合に指定する
 name = ""
 device_id_mode = "resolved"               # resolved | link | none
 

@@ -24,6 +24,7 @@ by_id = ""
 by_path = ""
 vendor_id = ""
 product_id = ""
+serial = ""                               # 同一機種が複数ある場合に指定する
 name = ""
 device_id_mode = "resolved"               # resolved | link | none
 
