@@ -684,6 +684,10 @@ obs-autocrop/
 │   ├── vision/           {markers.py, capture.py, detect.py}         # OS 非依存
 │   └── gui/      {app.py, main_window.py, workers.py}   # Phase 3
 ├── experiments/  {e0_inspect.py, e1_websocket.py, e2_scene_file.py, e3_devices.py, e4_aruco.py, e5_layout.py}
+├── tools/        # 単独で使える検証・保守用ツール
+│   ├── rtmp_sink.py      # ローカル RTMP 受信と映像ファイルの欠落検査（標準ライブラリ + ffmpeg、E1）
+│   └── fix_scale_ref.py  # キャンバス変更後のシーンアイテムの scale_ref 修正（E2）
+├── docs/         {manual-test.md}   # 手動テスト手順
 ├── tests/        {fixtures/, test_*.py}
 ├── backups/      # .gitignore に追加
 └── logs/         # .gitignore に追加
