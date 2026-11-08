@@ -167,6 +167,7 @@
 - `config.toml` の `obs.config_dir` と `obs.launch_cmd` で切り替える。
 - websocket の接続情報（ポート、パスワード）は `config.toml` に書くのを基本とする。省略した場合は `plugin_config/obs-websocket/config.json` から読む（E1 で確認。`server_password` を使う。`auth_required=false` なら空）。
 - **E1 で確認**: obs-websocket 5.7.4 は全インターフェース（`*:4455`）で待ち受け、待ち受けアドレスを限定する設定はない。ブラウザ上の任意のページからも `ws://localhost:4455` に接続できるため、ローカル利用でも認証は有効にする。LAN からの接続はファイアウォールで遮断する。運用では `config.toml` の `password` を空にして OBS の設定から読む（秘密を二重管理しない）。
+- **E1 で確認**: obs-websocket の「システムトレイのアラート」（`alerts_enabled`）を有効にすると、websocket の接続・切断のたびにレンダリングが遅れ、数フレーム落ちる（再現あり。無効にすると発生しない）。**アラートは無効にする。** また、接続は使い回し、頻繁に接続し直さない。
 - **E1 で確認（obsws-python 1.8.1 の注意点）**:
   - `host` / `port` / `password` をどれも渡さないと、カレントディレクトリの `config.toml` を自前で読む。`ws_client.py` は常に明示的に渡す。
   - INFO ログに接続パラメータ（パスワードを含む）を出す。`obsws_python` のロガーは WARNING に上げる。
@@ -620,7 +621,11 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-08 | E1 | `GetInputPropertiesListPropertyItems` で V4L2 ソースの選択肢を取得: `resolution` と `framerate` は 32 ビット単位のパック（4.2 の 16 ビットの記述は誤り）。既定値は `pixelformat` / `resolution` / `framerate` とも `-1` | 4.2 と 11章を修正 |
 | 2026-11-08 | E1 | 試行: websocket の `SetInputSettings` で V4L2 ソースを 3840×2160 MJPG 30fps に切替（OBS 起動中、再起動不要）。同時にクロップを 2 倍（L900/R500/B400）、シーンアイテムのスケールを 1/2 にして画角とキャンバス上の配置を維持。ソースサイズ 2440×1760、縮小比較で 1080p 時と画角一致（平均差 5.06、20px ずらすと 28.71）。切替直後に `select timed out` が約 1 秒（5 回）出たがその後は安定。レンダリングのスキップは 10 秒で 1/300、CPU 約 2.8%。カメラ側の実フレームレートは未計測 | 4K を採用するかは検討中。元の状態は `experiments/out/e1-4k-original-state.json` |
 | 2026-11-08 | E1 | **決定: 4K（3840×2160 MJPG 30fps）で運用を続ける。** ユーザーの目視で fps が十分なことを確認。OBS のソース設定、クロップ（L900/R500/B400）、シーンアイテムのスケール（約 −1.227）は 4K の状態のまま | 1章の既定解像度、7.1 のマーカーサイズ計算、付録B の `[camera.format]` を 3840×2160 に更新。E4 は 4K で計測する |
-| 2026-11-08 | E1 | 未実施: 配信中・録画中の適用試験、OBS 起動直後の `wait_ready` / `wait_source_size` の挙動 | 後日実施 |
+| 2026-11-08 | E1 | 録画中の適用試験（NVENC、hybrid MP4、3840×2160 30fps）: 0.5 秒間隔で 20 回クロップを変更（位置 ±40px、サイズも変更）を 2 回実施。録画は途切れず、録画時間は単調増加、元の設定に復元できた。録画ファイル（125 秒、3752 フレーム）はフレーム間隔がすべて 33.3ms で、欠落は停止時の末尾のみ。**完了条件（録画）を満たした** | なし |
+| 2026-11-08 | E1 | 試験中のフレーム落ち（2〜3 フレーム）の原因を切り分け: websocket の新規接続時に再現性あり。原因は obs-websocket の `alerts_enabled=true`（トレイ通知）。無効化後は接続・`relative`↔`absolute` 切替・クロップ変更のいずれでも落ちない（32 秒で無関係な 1 フレームのみ）。OBS の「落ちたフレーム」はファイル上では前フレームの複製になり、時間の欠落にはならない | 4.1 に追記 |
+| 2026-11-08 | E1 | 配信中の適用試験: ローカル RTMP 受信（`tools/rtmp_sink.py`、ffmpeg `-listen 1`）に配信（NVENC 6000kbps、3840×2160 30fps）し、0.5 秒間隔で 20 回クロップを変更。配信は継続し再接続なし、フレーム落ちはレンダリング・出力・配信とも 0/317、混雑度 0。受信した FLV（36.8 秒）は 1103/1103 パケットで欠落なし（最大間隔 34ms）。**完了条件（配信・録画）を満たした** | なし |
+| 2026-11-08 | E1 | `SetStreamServiceSettings` は空の `streamServiceSettings` を受け付けない（403）。配信先が未設定の状態（プロファイルに `service.json` がない）へは websocket では戻せない。配信先を設定すると OBS がプロファイルに `service.json` を作る | 検証で配信先を一時変更する場合は、元に戻す方法を事前に決めておく |
+| 2026-11-08 | E1 | 未実施: OBS 起動直後の `wait_ready` / `wait_source_size` の挙動 | E2 で OBS を起動する際に確認 |
 
 ---
 

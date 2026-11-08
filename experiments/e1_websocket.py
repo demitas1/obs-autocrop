@@ -10,6 +10,8 @@ probe : OBS の状態を一時的に変更する（終了時に元に戻す）�
   2. relative=false で既知の矩形を設定し、サイズと画像の一致を確認
      → cx/cy が幅・高さとして解釈されるか
   3. 元の設定と有効状態に戻す
+live  : 配信中・録画中にクロップを連続で変更し、出力が途切れないかを監視する（終了時に元に戻す）。
+  事前にユーザーが OBS で配信または録画を開始しておく。
 結果は experiments/out/e1-*.json と PNG に保存する。
 """
 
@@ -159,6 +161,93 @@ def cmd_probe(cfg: dict, args) -> dict:
     return r
 
 
+def output_status(ws: ObsWs) -> dict:
+    st, rec, stream = ws._req("GetStats"), ws._req("GetRecordStatus"), ws._req("GetStreamStatus")
+    return {
+        "t": round(time.monotonic(), 3),
+        "render_skipped": st["renderSkippedFrames"], "render_total": st["renderTotalFrames"],
+        "output_skipped": st["outputSkippedFrames"], "output_total": st["outputTotalFrames"],
+        "cpu": round(st["cpuUsage"], 1),
+        "rec_active": rec["outputActive"], "rec_duration_ms": rec.get("outputDuration"),
+        "rec_bytes": rec.get("outputBytes"),
+        "stream_active": stream["outputActive"], "stream_reconnecting": stream.get("outputReconnecting"),
+        "stream_skipped": stream.get("outputSkippedFrames"), "stream_total": stream.get("outputTotalFrames"),
+        "stream_congestion": stream.get("outputCongestion"),
+    }
+
+
+def crop_sequence(base: CropRect, src_w: int, src_h: int, steps: int) -> list[CropRect]:
+    """位置とサイズを少しずつ動かす矩形の列（範囲内に収める）。"""
+    seq = []
+    for i in range(steps):
+        d = [0, 20, 40, 20, 0, -20, -40, -20][i % 8]
+        r = CropRect(base.x + d, base.y + abs(d), base.w - 2 * d, base.h + d)
+        seq.append(r.clamp(src_w, src_h)[0])
+    return seq
+
+
+def cmd_live(cfg: dict, args) -> dict:
+    if not args.yes:
+        sys.exit("live は配信・録画中の OBS の状態を変更します。--yes を付けて実行してください")
+    t = cfg.get("target", {})
+    source, filt = t["source_name"], t["filter_name"]
+    r: dict = {"interval_s": args.interval, "steps": args.steps, "samples": []}
+
+    with connect(cfg) as ws:
+        s0 = output_status(ws)
+        if not (s0["rec_active"] or s0["stream_active"]):
+            sys.exit("配信も録画も開始されていません。OBS で開始してから実行してください")
+        orig = ws.get_filter(source, filt)
+        r["original"] = {"settings": orig.settings, "enabled": orig.enabled}
+        # 素のサイズ: 一時無効化は出力に映るため、relative の設定から逆算する
+        w, h = ws.get_source_size(source)
+        c = orig.settings
+        if not c.get("relative", True):
+            sys.exit("relative=false の設定からは素のサイズを求められません")
+        src_w, src_h = w + c.get("left", 0) + c.get("right", 0), h + c.get("top", 0) + c.get("bottom", 0)
+        base = CropRect.from_filter_settings(c, src_w, src_h)
+        r["raw_size"], r["base"] = [src_w, src_h], base.__dict__
+        print(f"raw {src_w}x{src_h}, base {base}, rec={s0['rec_active']} stream={s0['stream_active']}")
+        r["samples"].append({"step": "before", **s0})
+        try:
+            for i, rect in enumerate(crop_sequence(base, src_w, src_h, args.steps)):
+                ws.set_crop(source, filt, rect)
+                time.sleep(args.interval)
+                s = output_status(ws)
+                s["rect"] = rect.__dict__
+                s["source_size"] = ws.get_source_size(source)
+                r["samples"].append({"step": i, **s})
+                print(f"  [{i:2}] {rect.x},{rect.y},{rect.w}x{rect.h} size={s['source_size']} "
+                      f"rec={s['rec_active']}/{s['rec_duration_ms']}ms stream={s['stream_active']} "
+                      f"skip(render/out)={s['render_skipped']}/{s['output_skipped']} cpu={s['cpu']}%")
+        finally:
+            ws.set_filter_settings(source, filt, orig.settings, overlay=False)
+            ws.set_filter_enabled(source, filt, orig.enabled)
+            time.sleep(args.interval)
+            after = ws.get_filter(source, filt)
+            r["restored_ok"] = after.settings == orig.settings and after.enabled == orig.enabled
+            s = output_status(ws)
+            r["samples"].append({"step": "after", **s})
+            print(f"restored ok={r['restored_ok']}")
+
+    a, b = r["samples"][0], r["samples"][-1]
+    durs = [x["rec_duration_ms"] for x in r["samples"] if x["rec_active"]]
+    r["summary"] = {
+        "elapsed_s": round(b["t"] - a["t"], 2),
+        "render_skipped": b["render_skipped"] - a["render_skipped"],
+        "render_total": b["render_total"] - a["render_total"],
+        "output_skipped": b["output_skipped"] - a["output_skipped"],
+        "output_total": b["output_total"] - a["output_total"],
+        "rec_active_throughout": all(x["rec_active"] for x in r["samples"]) if a["rec_active"] else None,
+        "rec_duration_monotonic": all(x < y for x, y in zip(durs, durs[1:])) if durs else None,
+        "rec_duration_gain_ms": (durs[-1] - durs[0]) if durs else None,
+        "stream_active_throughout": all(x["stream_active"] for x in r["samples"]) if a["stream_active"] else None,
+        "stream_reconnecting_seen": any(x["stream_reconnecting"] for x in r["samples"]),
+    }
+    print("summary:", r["summary"])
+    return r
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
@@ -166,11 +255,15 @@ def main() -> int:
     sub.add_parser("status", help="読み取り専用の確認")
     p = sub.add_parser("probe", help="一時的に設定を変えて要確認事項を調べる（元に戻す）")
     p.add_argument("--yes", action="store_true", help="OBS の状態変更を許可する")
+    p = sub.add_parser("live", help="配信・録画中にクロップを連続変更して出力を監視する（元に戻す）")
+    p.add_argument("--yes", action="store_true", help="OBS の状態変更を許可する")
+    p.add_argument("--steps", type=int, default=20)
+    p.add_argument("--interval", type=float, default=0.5)
     args = ap.parse_args()
 
     cfg = load_config(args.config)
     OUT.mkdir(exist_ok=True)
-    r = {"status": cmd_status, "probe": cmd_probe}[args.cmd](cfg, args)
+    r = {"status": cmd_status, "probe": cmd_probe, "live": cmd_live}[args.cmd](cfg, args)
     r["timestamp"] = dt.datetime.now().isoformat(timespec="seconds")
     out = OUT / f"e1-{args.cmd}-{dt.datetime.now():%Y%m%d-%H%M%S}.json"
     out.write_text(json.dumps(r, ensure_ascii=False, indent=2, default=str))

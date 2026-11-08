@@ -21,10 +21,23 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 | `experiments/e0_inspect.py` | 実環境の検査（読み取り専用。出力は `experiments/out/`） | 完了 |
 | `experiments/e3_devices.py` | カメラの恒久識別 | 完了 |
 | `experiments/e2_scene_file.py` | シーンコレクションの読み書き | 未着手 |
-| `experiments/e1_websocket.py` | websocket 通信 | 一部完了（配信中の試験が残り） |
+| `experiments/e1_websocket.py` | websocket 通信 | ほぼ完了（OBS 起動直後の確認が残り） |
 | `experiments/e4_aruco.py` | ArUco 認識 | 未着手 |
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。
+
+## 検証用ツール
+
+`tools/rtmp_sink.py`（標準ライブラリのみ、ffmpeg / ffprobe が必要）
+
+```sh
+# ローカルで RTMP を受信して experiments/out/rtmp-<時刻>.flv に保存する
+# OBS の配信設定: サービス=カスタム、サーバー=rtmp://127.0.0.1:1935/live、ストリームキー=test
+python3 tools/rtmp_sink.py serve            # --discard で保存しない、--loop で接続を待ち続ける
+
+# 映像ファイル（受信した FLV や OBS の録画）のタイムスタンプの欠落を調べる
+python3 tools/rtmp_sink.py analyze FILE
+```
 
 ## ライセンス
 
