@@ -36,6 +36,7 @@
 .venv/bin/python experiments/e4_aruco.py markers --size-mm N|snap|measure [--runs 10]   # ArUco（snap/measure は OBS 終了中）
 .venv/bin/python experiments/e4_aruco.py controls list|check|set --yes   # カメラコントロール（set は変更）
 .venv/bin/python experiments/e4_aruco.py apply --yes|restore-crop FILE --yes   # 計測値の OBS への適用（OBS 起動中）
+.venv/bin/python experiments/e5_layout.py status|apply --yes [--anchor A] [--transition]|restore FILE --yes   # シーンアイテムの自動配置
 python3 tools/rtmp_sink.py serve [--discard] [--loop]   # 検証用ローカル RTMP 受信（ffmpeg）
 python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタイムスタンプ欠落検査
 .venv/bin/python tools/fix_scale_ref.py [--write]    # キャンバス変更後の scale_ref 修正（OBS 終了中）
@@ -43,9 +44,9 @@ python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタ�
 実験の出力は `experiments/out/`（git 管理外）。
 
 ## 現状のメモ（2026-11-08）
-- Phase 1（E0〜E4）完了。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
+- Phase 1（E0〜E4）完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
+- カメラのシーンアイテムは自動配置（top-left、表示範囲 (0,0)-(3025,2160)）を適用し、プログラムにも反映済み。元の変換は `experiments/out/e5-transform-before-20261108-165940.json`
 - OBS の Crop/Pad は E4 の計測値（x=904 y=66 w=2310 h=1649、`relative=false`）が適用された状態。適用前の設定は `experiments/out/e4-crop-before-*.json`（`restore-crop` で戻せる）。
 - 未決定事項:
   - `framerate` を JSON に書くか（OBS のプロパティ画面の選択肢の値と一致せず、OK で `-1` に戻る。PLAN.md 9.1）
-  - シーンアイテムの自動配置（PLAN.md 14章。Studio モードではプレビューにしか反映されない）
   - 計測結果の保存先（PLAN.md 7.5 の `~/.local/state/obs-autocrop/`）は Phase 2 で実装。E4 では `experiments/out/e4-last.json`

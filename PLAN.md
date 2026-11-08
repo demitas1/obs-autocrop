@@ -437,7 +437,8 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 10. OBS を起動し、wait_ready で接続を待つ
 11. 整合チェック（9章）を行う。失敗したら適用せずに終了する
 12. クロップ値を set_crop で適用する
-13. 微調整モードに入る（--no-adjust で省略できる）
+13. シーンアイテムを自動配置する（14章。[layout] で有効なとき。--no-layout で省略できる）
+14. 微調整モードに入る（--no-adjust で省略できる）。クロップを変えるたびに自動配置もやり直す
 ```
 
 - **注意（E2 で確認）**: Studio モードで「シーンを複製」が有効な場合、OBS 起動直後のプログラム側の配置がずれることがある（13章）。クロップ（ソースのフィルタ）はプレビュー・プログラムの両方に反映されるが、シーンアイテムの配置はプレビューにしか反映されない。統合フローでは、起動後に Studio モードかどうか（`GetStudioModeEnabled`）を確認し、警告を出す。トランジションの実行（`TriggerStudioModeTransition`）は出力に影響するため、自動では行わず確認を取る。
@@ -465,10 +466,12 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 | `markers generate` | マーカーを生成する |
 | `measure` | 7章の計測のみ行う（OBS 停止中に実行） |
 | `apply` | クロップ値を適用する（`--from-last` または `--rect x,y,w,h`） |
+| `layout` | シーンアイテムの自動配置のみ行う（`--anchor`、`--transition`、14章） |
 | `adjust` | 微調整モードのみを起動する |
 | `run` | 上記の統合フローを実行する |
 
 - 共通オプション: `--config`、`--device-id-mode`、`--dry-run` / `--write`、`-v`
+- E4 で確認: カメラを OpenCV で開く計測は OBS の終了中に行う（OBS がデバイスを使用中のため）。
 
 ---
 
@@ -648,6 +651,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-08 | E4 | 傾きの警告: 上辺 61px、右辺 54px、下辺 36px（許容は幅・高さの 1%）。マーカーの配置が軸と平行でないためで、矩形は 4 隅を囲む最小の矩形になる。各辺で最も外側のマーカーの外縁がクロップの境界に接している（拡大画像で確認） | なし |
 | 2026-11-08 | E4 | OBS の起動前後で V4L2 コントロールの値は全く変わらなかった | 7.3 を確定 |
 | 2026-11-08 | E4 | websocket で OBS に適用（`relative=false`）。ソースサイズは 2310×1649 で一致。9.2 の確認（前段のフィルタ、`device_id`、Crop/Pad 無効時の素のサイズ 3840×2160）はすべて問題なし。ユーザーの目視で正しくクロップされていることを確認。**完了条件を満たした（E4 完了、Phase 1 完了）** | なし |
+| 2026-11-08 | 14章 | シーンアイテムの自動配置: 2310×1649 のクロップに `top-left` で適用。縦がいっぱい（拡大率 2160/1649）で表示範囲 (0, 0)–(3025, 2160)。初回は位置 3025.83 を指定したが OBS が 3026 に丸めて保存し、左端が 0.17px ずれた → 表示サイズを整数に切り捨てる方式に変更。Studio モードではプレビューにのみ反映され、ユーザーのトランジションでプログラムにも同じ配置で反映された。ユーザーの目視で確認 | 14章を実装済みに更新 |
 | 2026-11-08 | E1/E2 | OBS 起動直後: ログ上はプロセス起動から websocket サーバー起動まで約 0.8 秒、シーン読み込み完了まで約 1.0 秒、接続・応答まで約 1.2 秒、ソースサイズ取得はその 0.7 秒後（計約 1.9 秒）。シーン読み込み前の接続では `GetVersion` が 207（NotReady）で失敗した → `wait_ready` で 207 を再試行するよう修正。**E1 の残りを完了** | 6.2 に追記 |
 
 ---
@@ -656,7 +660,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 
 | 項目 | 内容 | 備考 |
 |---|---|---|
-| シーンアイテムの自動配置 | クロップを適用してサイズが変わったとき、カメラのシーンアイテムをキャンバスの左上を基準に、アスペクト比を保ったまま横いっぱいまたは縦いっぱい（内側に収まる最大サイズ）に配置し直す | 2026-11-08 ユーザー要望。`SetSceneItemTransform` で境界の種類 `OBS_BOUNDS_SCALE_INNER`、境界の大きさ＝キャンバス（`GetVideoSettings` の `baseWidth/Height`）、配置の基準＝左上、位置 (0, 0) を設定する案。現在のアイテムは負のスケール（上下左右反転）で配置されているため、境界を使う場合の反転の扱いを要確認。有効・無効は `config.toml` で選べるようにする。**Studio モードで「シーンを複製」が有効な場合、`SetSceneItemTransform` はプレビュー側にしか反映されない**ため、プログラムへの反映方法（トランジションの要否）を決める必要がある（E2 で確認） |
+| シーンアイテムの自動配置 | **実装済み（2026-11-08、`obsctl/layout.py`、`experiments/e5_layout.py`）。** クロップ後のソースを、アスペクト比を保ってキャンバスの内側に収まる最大の大きさ（縦または横がいっぱい）にし、`[layout] anchor` で選んだ位置に合わせる: `top-left`（左上を左上に）、`top-right`（右上を右上に）、`top-center`（上辺中央を上辺中央に） | 方式: 境界（`OBS_BOUNDS_SCALE_INNER`）は使わず、境界なしのまま `scaleX/Y` と `positionX/Y` を計算する（現在の反転＝負のスケールをそのまま保てるため）。アライメントは左上（5）にそろえる。回転・境界を使うアイテムは対象外。OBS 32 は位置を整数に丸めて保存するため、表示サイズを軸ごとに整数へ切り捨て、拡大率を軸ごとに決める（アスペクト比の誤差 1px 未満）。Studio モード（「シーンを複製」）ではプレビューにのみ反映されるため、プログラムへはトランジションで反映する（`--transition` でも可）。Phase 2 の統合フローでは、クロップの適用後に実行する（有効・無効を設定で選べるようにする） |
 
 ---
 
@@ -671,7 +675,7 @@ obs-autocrop/
 │   ├── config.py
 │   ├── cli.py
 │   ├── models.py         # CameraIdentity, CameraSourceConfig, CropRect など（OS 非依存）
-│   ├── obsctl/           {scene_file.py, ws_client.py, launcher.py}   # OS 非依存
+│   ├── obsctl/           {scene_file.py, ws_client.py, device_id.py, layout.py, launcher.py}   # OS 非依存
 │   ├── platforms/
 │   │   ├── __init__.py   # get_platform()、UnsupportedPlatform
 │   │   ├── base.py       # インターフェース（typing.Protocol）
@@ -679,7 +683,7 @@ obs-autocrop/
 │   │   └── linux/        {camera.py, controls.py, formats.py, capture.py, obs_paths.py, obs_process.py, v4l2_source.py}
 │   ├── vision/           {markers.py, capture.py, detect.py}         # OS 非依存
 │   └── gui/      {app.py, main_window.py, workers.py}   # Phase 3
-├── experiments/  {e0_inspect.py, e1_websocket.py, e2_scene_file.py, e3_devices.py, e4_aruco.py}
+├── experiments/  {e0_inspect.py, e1_websocket.py, e2_scene_file.py, e3_devices.py, e4_aruco.py, e5_layout.py}
 ├── tests/        {fixtures/, test_*.py}
 ├── backups/      # .gitignore に追加
 └── logs/         # .gitignore に追加
@@ -745,4 +749,7 @@ margin_px = 0
 skew_tol_ratio = 0.01
 adaptive_win_max = 103                    # ArUco 適応的二値化の窓の最大（OpenCV 既定 23。大きいマーカー向け、E4）
 adaptive_win_step = 10
+
+[layout]                                  # シーンアイテムの自動配置（14章）
+anchor = "top-left"                       # top-left | top-right | top-center
 ```

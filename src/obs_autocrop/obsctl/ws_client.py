@@ -149,6 +149,25 @@ class ObsWs:
         uri = self._req("GetSourceScreenshot", data)["imageData"]
         return base64.b64decode(uri.split(",", 1)[1])
 
+    def get_item_transform(self, ref: SceneItemRef) -> dict:
+        return self._req("GetSceneItemTransform", {"sceneName": ref.scene,
+                                                   "sceneItemId": ref.item_id})["sceneItemTransform"]
+
+    def set_item_transform(self, ref: SceneItemRef, transform: dict) -> None:
+        """指定したキーだけを変更する。Studio モードで「シーンを複製」が有効だとプレビューにのみ反映（E2）。"""
+        self._req("SetSceneItemTransform", {"sceneName": ref.scene, "sceneItemId": ref.item_id,
+                                            "sceneItemTransform": transform})
+
+    def canvas_size(self) -> tuple[int, int]:
+        v = self._req("GetVideoSettings")
+        return int(v["baseWidth"]), int(v["baseHeight"])
+
+    def studio_mode(self) -> bool:
+        return bool(self._req("GetStudioModeEnabled")["studioModeEnabled"])
+
+    def trigger_studio_transition(self) -> None:
+        self._req("TriggerStudioModeTransition")
+
     # ------------------------------------------------------------ crop
 
     def get_crop(self, source: str, filter_name: str, src_w: int, src_h: int) -> CropRect:

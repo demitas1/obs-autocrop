@@ -55,3 +55,6 @@ margin_px = 0
 skew_tol_ratio = 0.01
 adaptive_win_max = 103                    # ArUco 適応的二値化の窓の最大（OpenCV 既定 23。大きいマーカー向け）
 adaptive_win_step = 10
+
+[layout]                                  # シーンアイテムの自動配置（PLAN.md 14章）
+anchor = "top-left"                       # top-left: 左上を左上に / top-right: 右上を右上に / top-center: 上辺中央を上辺中央に
