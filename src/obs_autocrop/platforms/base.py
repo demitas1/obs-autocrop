@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from obs_autocrop.models import CameraIdentity, CameraInfo, CameraSourceConfig, ResolvedCamera
 
@@ -59,4 +59,27 @@ class CaptureSourceAdapter(Protocol):
 
     def same_device(self, device_ref: str | None, node: str) -> bool:
         """device_ref（パスやリンク）が node と同じデバイスを指すか。"""
+        ...
+
+
+class CaptureBackend(Protocol):
+    """カメラを OpenCV で開く方法（PLAN.md 7.2）。"""
+
+    def open(self, node: str) -> Any:
+        """cv2.VideoCapture を返す。開けたかどうかの確認は呼び出し側が行う。"""
+        ...
+
+
+class CameraControls(Protocol):
+    """カメラコントロール（フォーカス、露出など）の読み書き（PLAN.md 7.3）。"""
+
+    def list_controls(self, node: str) -> dict[str, dict]:
+        """名前 → {type, min, max, default, value, inactive, ...}。"""
+        ...
+
+    def get(self, node: str, names: list[str]) -> dict[str, int]:
+        ...
+
+    def set(self, node: str, values: dict[str, int]) -> None:
+        """values の順に 1 つずつ設定する（自動系を先に切る必要があるため順序に意味がある）。"""
         ...

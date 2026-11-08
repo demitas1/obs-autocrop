@@ -37,8 +37,9 @@ fps = 30
 [camera.controls]                         # 名前は devices controls で確認する
 # focus_automatic_continuous = 0
 # focus_absolute = 0
-# zoom_absolute = 100
-# auto_exposure = 1
+# zoom_absolute = 0
+# pan_absolute = 0
+# tilt_absolute = 0
 
 [markers]
 dictionary = "DICT_4X4_50"
@@ -52,3 +53,5 @@ measure_frames = 10
 min_valid = 5
 margin_px = 0
 skew_tol_ratio = 0.01
+adaptive_win_max = 103                    # ArUco 適応的二値化の窓の最大（OpenCV 既定 23。大きいマーカー向け）
+adaptive_win_step = 10

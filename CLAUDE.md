@@ -3,7 +3,7 @@
 設計方針・仕様の正は [PLAN.md](PLAN.md)。作業前に必ず 0章（実装方針）と 13章（実験結果記録）を確認する。
 
 ## 進め方
-- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 の順。進捗は PLAN.md 13章を参照（E0・E3・E2・E1 完了、次は E4）。
+- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 の順。進捗は PLAN.md 13章を参照（E0・E3・E2・E1・E4 完了。Phase 1 完了）。
 - 実験で「要確認」を確定させたら、13章に追記し、該当する本文も更新する。本文と実環境が違えば実環境を正とする。
 - `experiments/` は薄く保ち、ロジックは `src/obs_autocrop/{obsctl,platforms,vision}` に置く。
 - OS 依存処理は `platforms/` に閉じ込め、共通層から `pyudev` や `v4l2-ctl` を直接使わない（PLAN.md 3.1）。
@@ -21,6 +21,9 @@
 - OBS の配信先は検証用のローカル RTMP（`rtmp://127.0.0.1:1935/live`、キー `test`）。外部には配信されない
 - Studio モード使用（「シーンを複製」オン）。キャンバスのサイズを変えたら `tools/fix_scale_ref.py` で各アイテムの `scale_ref` を合わせる
 - OBS の操作（起動・終了・トランジション・プロパティ画面）はユーザーが行う。手順は一つずつ指示する
+- カメラの映像は机に対して 180° 回転している（OBS ではシーンアイテムの負のスケールで戻している）
+- カメラのフォーカスはオートのまま（ユーザー判断）。`[camera.controls]` で固定するのは zoom / pan / tilt のみ
+- カメラを OpenCV で開く計測（`e4_aruco.py snap|measure`）は OBS の終了中に行う
 
 ## コマンド
 ```sh
@@ -30,16 +33,19 @@
 .venv/bin/python experiments/e1_websocket.py status|probe --yes|live --yes   # websocket（probe/live は OBS を一時変更）
 .venv/bin/python experiments/e2_scene_file.py inspect|set-device --mode M [--write]|restore BACKUP [--write]|verify   # シーンファイル
 .venv/bin/python experiments/e3_devices.py list|check --label X|summary   # カメラ識別
+.venv/bin/python experiments/e4_aruco.py markers --size-mm N|snap|measure [--runs 10]   # ArUco（snap/measure は OBS 終了中）
+.venv/bin/python experiments/e4_aruco.py controls list|check|set --yes   # カメラコントロール（set は変更）
+.venv/bin/python experiments/e4_aruco.py apply --yes|restore-crop FILE --yes   # 計測値の OBS への適用（OBS 起動中）
 python3 tools/rtmp_sink.py serve [--discard] [--loop]   # 検証用ローカル RTMP 受信（ffmpeg）
 python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタイムスタンプ欠落検査
 .venv/bin/python tools/fix_scale_ref.py [--write]    # キャンバス変更後の scale_ref 修正（OBS 終了中）
 ```
 実験の出力は `experiments/out/`（git 管理外）。
 
-## 中断時点のメモ（2026-11-08）
-- 次は E4（ArUco 認識）。`vision/`（markers / capture / detect）は未着手。計測は 3840×2160 MJPG で行う（PLAN.md 1章・7.1）。
+## 現状のメモ（2026-11-08）
+- Phase 1（E0〜E4）完了。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
+- OBS の Crop/Pad は E4 の計測値（x=904 y=66 w=2310 h=1649、`relative=false`）が適用された状態。適用前の設定は `experiments/out/e4-crop-before-*.json`（`restore-crop` で戻せる）。
 - 未決定事項:
   - `framerate` を JSON に書くか（OBS のプロパティ画面の選択肢の値と一致せず、OK で `-1` に戻る。PLAN.md 9.1）
   - シーンアイテムの自動配置（PLAN.md 14章。Studio モードではプレビューにしか反映されない）
-- Phase 2（`cli.py`、`launcher.py`、統合フロー）は未着手。
-
+  - 計測結果の保存先（PLAN.md 7.5 の `~/.local/state/obs-autocrop/`）は Phase 2 で実装。E4 では `experiments/out/e4-last.json`

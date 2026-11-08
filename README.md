@@ -22,7 +22,7 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 | `experiments/e3_devices.py` | カメラの恒久識別 | 完了 |
 | `experiments/e2_scene_file.py` | シーンコレクションの読み書き | 完了 |
 | `experiments/e1_websocket.py` | websocket 通信 | 完了 |
-| `experiments/e4_aruco.py` | ArUco 認識 | 未着手 |
+| `experiments/e4_aruco.py` | ArUco 認識（マーカー生成、計測、OBS への適用） | 完了 |
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。
 
