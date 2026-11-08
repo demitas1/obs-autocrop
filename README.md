@@ -21,7 +21,7 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 | `experiments/e0_inspect.py` | 実環境の検査（読み取り専用。出力は `experiments/out/`） | 完了 |
 | `experiments/e3_devices.py` | カメラの恒久識別 | 完了 |
 | `experiments/e2_scene_file.py` | シーンコレクションの読み書き | 未着手 |
-| `experiments/e1_websocket.py` | websocket 通信 | 未着手 |
+| `experiments/e1_websocket.py` | websocket 通信 | 一部完了（配信中の試験が残り） |
 | `experiments/e4_aruco.py` | ArUco 認識 | 未着手 |
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。

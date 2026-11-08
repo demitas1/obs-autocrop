@@ -29,8 +29,8 @@ name = ""
 device_id_mode = "resolved"               # resolved | link | none
 
 [camera.format]                           # OBS 側が -1 の場合に使う
-width = 1920
-height = 1080
+width = 3840
+height = 2160
 fourcc = "MJPG"
 fps = 30
 

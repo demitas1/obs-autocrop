@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from obs_autocrop.platforms.base import CameraLocator
+from obs_autocrop.platforms.base import CameraLocator, ObsPaths
 
 
 class UnsupportedPlatform(RuntimeError):
@@ -18,12 +18,20 @@ class UnsupportedPlatform(RuntimeError):
 @dataclass
 class Platform:
     camera_locator: CameraLocator
+    obs_paths: ObsPaths
 
 
-def get_platform(options: dict | None = None) -> Platform:
-    """sys.platform に応じた実装を返す。options は config.toml の [platform]。"""
+def get_platform(config: dict | None = None) -> Platform:
+    """sys.platform に応じた実装を返す。config は config.toml 全体（[platform] と [obs] を見る）。"""
+    config = config or {}
+    flavor = config.get("platform", {}).get("obs_flavor", "native")
+    config_dir = config.get("obs", {}).get("config_dir") or None
     if sys.platform.startswith("linux"):
         from obs_autocrop.platforms.linux.camera import LinuxCameraLocator
+        from obs_autocrop.platforms.linux.obs_paths import LinuxObsPaths
 
-        return Platform(camera_locator=LinuxCameraLocator())
+        return Platform(
+            camera_locator=LinuxCameraLocator(),
+            obs_paths=LinuxObsPaths(config_dir, flavor),
+        )
     raise UnsupportedPlatform(f"unsupported platform: {sys.platform} (Linux only)")

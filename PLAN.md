@@ -49,7 +49,8 @@
 - **計測は収録・配信の前に1回行う。** カメラが固定されているので、継続的に計測する必要はない。計測後にカメラを解放する方式Aと相性がよい。
 - **計測は数十フレームかけてよい。** 被写体が静止しているので、ウォームアップや複数フレームの中央値に時間をかけ、精度を優先する。
 - **値の再利用を前提とする。** 機材の配置が変わらなければ、前回の計測値（`apply --from-last`）で十分な場合が多い。マーカーを置かなくても運用できるようにする。
-- **解像度を優先する。** フォーマットの既定値は最大解像度（1920×1080）とし、その解像度で使えるフォーマットとフレームレートを選ぶ。
+- **解像度を優先する。** フォーマットの既定値は高解像度とし、その解像度で使えるフォーマットとフレームレートを選ぶ。
+  - 当環境（AC410、キャンバス 3840×2160）では **3840×2160 MJPG 30fps** とする（2026-11-08 決定。E1 の試行で 30fps が出ることを確認）。
   - USB 2.0 で 1080p の YUYV が低フレームレートしか出ない場合は、MJPEG を選ぶ。
   - それでもフレームレートが足りない場合でも、解像度は下げずに警告だけ出す。
 - **カメラの状態を固定する。** ズーム、フォーカス、露出の固定（7.3）は、この前提を成り立たせるための必須の運用とする。
@@ -156,7 +157,7 @@
 | 設定ルート | `~/.config/obs-studio/` | `~/.var/app/com.obsproject.Studio/config/obs-studio/` |
 | シーンコレクション | `basic/scenes/<名前>.json` | 同左 |
 | 現在のコレクション名 | `user.ini`（OBS 31 以降）または `global.ini` の `[Basic] SceneCollectionFile` | 同左 |
-| websocket 設定 | `plugin_config/obs-websocket/config.json`（要確認） | 同左 |
+| websocket 設定 | `plugin_config/obs-websocket/config.json`（E0 で確認） | 同左 |
 | 起動コマンド | `obs` | `flatpak run com.obsproject.Studio` |
 
 - **E0 で確認（OBS 32.2.0 PPA 版）**:
@@ -164,7 +165,11 @@
   - `global.ini` に `[Locations]`（`Configuration`、`SceneCollections`、`Profiles`、`PluginManagerSettings`）がある。値は `obs-studio` の親ディレクトリ（既定では `~/.config`）。シーンコレクションは `<SceneCollections>/obs-studio/basic/scenes/` から探す。`ObsPaths` はこのキーを優先し、無ければ設定ルートを使う。
   - websocket 設定は `plugin_config/obs-websocket/config.json` で確定。キーは `server_enabled`、`server_port`、`server_password`、`auth_required`、`alerts_enabled`、`first_load`。
 - `config.toml` の `obs.config_dir` と `obs.launch_cmd` で切り替える。
-- websocket の接続情報（ポート、パスワード）は `config.toml` に書くのを基本とする。省略した場合は `plugin_config/obs-websocket/config.json` から読む（キー名は E1 で要確認）。
+- websocket の接続情報（ポート、パスワード）は `config.toml` に書くのを基本とする。省略した場合は `plugin_config/obs-websocket/config.json` から読む（E1 で確認。`server_password` を使う。`auth_required=false` なら空）。
+- **E1 で確認**: obs-websocket 5.7.4 は全インターフェース（`*:4455`）で待ち受け、待ち受けアドレスを限定する設定はない。ブラウザ上の任意のページからも `ws://localhost:4455` に接続できるため、ローカル利用でも認証は有効にする。LAN からの接続はファイアウォールで遮断する。運用では `config.toml` の `password` を空にして OBS の設定から読む（秘密を二重管理しない）。
+- **E1 で確認（obsws-python 1.8.1 の注意点）**:
+  - `host` / `port` / `password` をどれも渡さないと、カレントディレクトリの `config.toml` を自前で読む。`ws_client.py` は常に明示的に渡す。
+  - INFO ログに接続パラメータ（パスワードを含む）を出す。`obsws_python` のロガーは WARNING に上げる。
 
 ### 4.2 シーンコレクション JSON の構造（必要な部分のみ）
 
@@ -183,8 +188,8 @@
         "device_id": "/dev/video0",
         "input": 0,
         "pixelformat": 1196444237,   // FourCC（リトルエンディアンの整数）
-        "resolution": 125830200,     // (幅 << 16) | 高さ
-        "framerate": 65566,          // (分子 << 16) | 分母、65566 = 1/30 → 30fps
+        "resolution": 8246337209400, // (幅 << 32) | 高さ（E1 で確認。1920x1080）
+        "framerate": 4294967326,     // (分子 << 32) | 分母（フレーム間隔）。1/30 → 30fps
         "...": "..."
       },
       "filters": [
@@ -204,6 +209,10 @@
 - シーンも `sources` の要素であり、`id: "scene"` で区別される。シーンアイテムは `settings.items` にある。
 - `resolution`、`pixelformat`、`framerate` が `-1` の場合は「変更しない」を意味する（9章）。
 - 未知のキーはすべて保持し、変更するキー以外には手を触れない。
+- **E1 で確認（OBS 32.2.0）**: `resolution` / `framerate` は **32 ビット単位**でパックされる（当初の想定の 16 ビットではない）。`GetInputPropertiesListPropertyItems` の選択肢で確認した。
+  - `resolution = (幅 << 32) | 高さ`（例: 1920x1080 = 8246337209400、3840x2160 = 16492674418800）
+  - `framerate = (分子 << 32) | 分母`（フレーム間隔。例: 30fps = 1/30 = 4294967326、60fps = 4294967356）
+  - `GetInputDefaultSettings(v4l2_input)` で `pixelformat` / `resolution` / `framerate` の既定値が `-1` であることを確認（E0 の「キーなし ≡ `-1`」の根拠）
 - **E0 で確認（OBS 32.2.0）**:
   - OBS は既定値と同じ設定を JSON に書かない。実環境の `v4l2_input` の `settings` は `{device_id, input, pixelformat}` だけで、`resolution` と `framerate` のキーは**存在しない**。v4l2 プラグインの既定値は `-1` なので、**キーがない場合は `-1` と同じに扱う**（デコード結果は `None`）。書き込むときはキーを追加する。
   - Crop/Pad フィルタは `relative: true` で `left` / `top` / `right` / `bottom`（各辺からの削り量）を保存していた。`cx` / `cy` のキーはない。読み取りは両方の形式に対応し、適用時（websocket）は 6.3 のとおり `relative=false` + `cx` / `cy` で送る。
@@ -306,14 +315,17 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 | `set_filter_enabled(...)` | `SetSourceFilterEnabled` | 整合チェック時に一時的に無効化する |
 | `screenshot(source, width)` | `GetSourceScreenshot` | GUI での確認用プレビュー |
 
-- **要確認（E1）**: `sourceWidth` / `sourceHeight` はフィルタ適用後のサイズか、適用前のサイズか。
-  - 適用後のサイズだった場合、整合チェックでは Crop フィルタを一時的に無効化してから素のサイズを取得する。
-  - あるいは、現在のクロップ値から逆算して素のサイズを求める。
+- **E1 で確定**: `sourceWidth` / `sourceHeight` は**フィルタ適用後**のサイズ（Crop 無効時 1920×1080、`relative=true` L450/R250/B200 で 1220×880）。
+  - 整合チェック（9.2）では、Crop フィルタを一時的に無効化してから素のサイズを取得する。統合フローでは適用前（配信開始前）に行うため、出力への影響は問題にならない。
+  - `relative=true` の場合はクロップ値から逆算（`W = w + left + right`）もできるが、`relative=false` では素のサイズが求まらないため、無効化を基本とする。
+- **E1 で確定**: `GetSourceScreenshot` は**フィルタ適用後**の映像を返す（Crop の後段にある Color Correction も適用される）。サイズを省略すると適用後の解像度で返る。
+- **E1 で確認**: `GetSourceFilterList` の `filterKind` は版付きの ID を返す（例: シーン JSON の `id` が `color_filter` のフィルタは `color_filter_v2`）。種別の比較では版付きの ID も考慮する。
 
 ### 6.3 クロップ値の表現
 - 内部では `CropRect(x, y, w, h)` をソースのピクセル座標で扱う。
 - OBS への設定は `relative=false` とし、`left=x`、`top=y`、`cx=w`、`cy=h` で送る。
-  - **要確認（E1）**: `relative=false` のとき `cx` / `cy` が幅と高さとして解釈されること。
+  - **E1 で確定**: `relative=false` のとき `cx` / `cy` は幅と高さ、`left` / `top` はオフセットとして解釈される。`(100, 50, 1280, 720)` を設定するとサイズは 1280×720 になり、映像は素の画像の `[100:1380, 50:770]` と一致した（平均差 2.56。左上 `[0:1280, 0:720]` との差は 49.39）。
+  - `overlay=true` で送ると、既存の `right` / `bottom` はキーとして残る（`relative=false` では無視されるので実害はない）。完全に置き換えたい場合（元の設定への復元など）は `overlay=false` を使う。
 - 送信前に検証する。
   - `0 <= x`、`0 <= y`、`x + w <= W`、`y + h <= H`、`w >= 16`、`h >= 16`
   - 条件を満たさなければ値を範囲内に収め、警告を出す。
@@ -342,7 +354,7 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
   - 2: 右下
   - 3: 左下
 - 推奨サイズの計算:
-  - `mm_per_px = max(view_w_mm / 1920, view_h_mm / 1080)`（`view_*` はカメラに映る範囲）
+  - `mm_per_px = max(view_w_mm / W, view_h_mm / H)`（`view_*` はカメラに映る範囲、`W×H` は計測時の解像度。当環境では 3840×2160）
   - `size_mm = target_px（既定 50）× mm_per_px` を、1 mm 単位で切り上げる
 - 出力:
   - マーカー 4 枚を 1 ページに配置した PDF（300dpi、実寸）と、個別の PNG
@@ -516,7 +528,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 
 | 対象 | 方法 |
 |---|---|
-| 数値のデコード（解像度、フレームレート、FourCC） | 既知の値で単体テストする（例: 65566 → 30fps） |
+| 数値のデコード（解像度、フレームレート、FourCC） | 既知の値で単体テストする（例: 4294967326 → 30fps、8246337209400 → 1920x1080） |
 | シーンコレクション | 実ファイルを匿名化したフィクスチャで、読み込み、更新、差分、保存（未知キーの保持）を確認する |
 | クロップ算出 | 合成画像で確認する。生成したマーカーを既知の位置に貼った画像を作り、ノイズやぼかし、わずかな傾きを加えて、算出値の誤差が ±1px 以内であることを確認する |
 | カメラの解決 | pyudev をモックし、一致 0 件・1 件・複数件の場合を確認する |
@@ -601,6 +613,22 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-07 | E0 | コントロール名: `focus_automatic_continuous`、`focus_absolute`(0–1023)、`zoom_absolute`(0–100)、`auto_exposure`(menu 0–3、既定 3=Aperture Priority)、`exposure_time_absolute`、`white_balance_automatic`、`white_balance_temperature`、`pan_absolute` / `tilt_absolute` | 付録B のコメント例と一致 |
 | 2026-11-07 | E3 | 3 方式（by-id / by-path / VID:PID+name）を単独で解決。基準（OBS 起動中）、同一ポート抜き差し（OBS 起動中）、別ポート（`usb-0:2:1.0` → `usb-0:3:1.0`、同一コントローラ `0000:09:00.3`）、元のポートに戻す、再起動（boot_id 変化を確認）の5状態で検証。by-id と usb は全状態で `/dev/video0`（serial 一致）。by-path は別ポートでのみ `CameraNotFound`（想定どおり）、新ポートの `usbv2-` 形式の path では解決できた。**完了条件を満たした** | 5.2 に指定方法の補足、`[camera]` に `serial` を追加（付録B） |
 | 2026-11-07 | E3 | 注意: カメラが1台のため、全状態でノードは `/dev/video0` のままで、ノード番号が変わるケースは再現できなかった。OBS 起動中の抜き差しでも番号はずれなかった（OBS がデバイスを閉じたためと思われる）。複数カメラでの曖昧さ（`CameraAmbiguous`）とシリアルによる区別は単体テストでのみ確認 | なし |
+| 2026-11-08 | E1 | 接続: obs-websocket 5.7.4（rpc 1）。`config.toml` のパスワードを空にし、`config.json` から読み込んで認証接続できた。待ち受けは `*:4455`（全インターフェース） | 4.1 に追記 |
+| 2026-11-08 | E1 | `sourceWidth/Height` と `GetSourceScreenshot` はどちらもフィルタ適用後（Crop 無効時 1920×1080、L450/R250/B200 で 1220×880） | 6.2 を確定 |
+| 2026-11-08 | E1 | `relative=false` で `cx/cy` は幅・高さ。サイズと画像の照合で確認。`overlay=false` で元の設定に完全に復元できた | 6.3 を確定 |
+| 2026-11-08 | E1 | キャンバスを 3840×2160（出力も 3840×2160、30fps）に変更後も、`sourceWidth/Height`（1220×880）・クロップ値・スクリーンショットは変化なし（クロップはソース座標系で、キャンバスに依存しない）。カメラのシーンアイテムは境界なし（`OBS_BOUNDS_NONE`）・負のスケール（約 −2.45、上下左右反転＝180°回転）。境界なしではクロップの幅・高さを変えるとキャンバス上の表示サイズと位置も変わる | 要検討: 境界（Bounds）の設定、カメラ解像度の 4K 化 |
+| 2026-11-08 | E1 | `GetInputPropertiesListPropertyItems` で V4L2 ソースの選択肢を取得: `resolution` と `framerate` は 32 ビット単位のパック（4.2 の 16 ビットの記述は誤り）。既定値は `pixelformat` / `resolution` / `framerate` とも `-1` | 4.2 と 11章を修正 |
+| 2026-11-08 | E1 | 試行: websocket の `SetInputSettings` で V4L2 ソースを 3840×2160 MJPG 30fps に切替（OBS 起動中、再起動不要）。同時にクロップを 2 倍（L900/R500/B400）、シーンアイテムのスケールを 1/2 にして画角とキャンバス上の配置を維持。ソースサイズ 2440×1760、縮小比較で 1080p 時と画角一致（平均差 5.06、20px ずらすと 28.71）。切替直後に `select timed out` が約 1 秒（5 回）出たがその後は安定。レンダリングのスキップは 10 秒で 1/300、CPU 約 2.8%。カメラ側の実フレームレートは未計測 | 4K を採用するかは検討中。元の状態は `experiments/out/e1-4k-original-state.json` |
+| 2026-11-08 | E1 | **決定: 4K（3840×2160 MJPG 30fps）で運用を続ける。** ユーザーの目視で fps が十分なことを確認。OBS のソース設定、クロップ（L900/R500/B400）、シーンアイテムのスケール（約 −1.227）は 4K の状態のまま | 1章の既定解像度、7.1 のマーカーサイズ計算、付録B の `[camera.format]` を 3840×2160 に更新。E4 は 4K で計測する |
+| 2026-11-08 | E1 | 未実施: 配信中・録画中の適用試験、OBS 起動直後の `wait_ready` / `wait_source_size` の挙動 | 後日実施 |
+
+---
+
+## 14. 将来の拡張
+
+| 項目 | 内容 | 備考 |
+|---|---|---|
+| シーンアイテムの自動配置 | クロップを適用してサイズが変わったとき、カメラのシーンアイテムをキャンバスの左上を基準に、アスペクト比を保ったまま横いっぱいまたは縦いっぱい（内側に収まる最大サイズ）に配置し直す | 2026-11-08 ユーザー要望。`SetSceneItemTransform` で境界の種類 `OBS_BOUNDS_SCALE_INNER`、境界の大きさ＝キャンバス（`GetVideoSettings` の `baseWidth/Height`）、配置の基準＝左上、位置 (0, 0) を設定する案。現在のアイテムは負のスケール（上下左右反転）で配置されているため、境界を使う場合の反転の扱いを要確認。有効・無効は `config.toml` で選べるようにする |
 
 ---
 
@@ -663,8 +691,8 @@ name = ""
 device_id_mode = "resolved"               # resolved | link | none
 
 [camera.format]                           # OBS 側が -1 の場合に使う
-width = 1920
-height = 1080
+width = 3840
+height = 2160
 fourcc = "MJPG"
 fps = 30
 

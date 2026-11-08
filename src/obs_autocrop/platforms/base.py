@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from obs_autocrop.models import CameraIdentity, CameraInfo, ResolvedCamera
@@ -18,4 +19,12 @@ class CameraLocator(Protocol):
 
     def config_snippet(self, camera: CameraInfo) -> str:
         """config.toml の [camera] に貼り付けられる候補設定を返す。"""
+        ...
+
+
+class ObsPaths(Protocol):
+    config_root: Path
+
+    def websocket_config(self) -> dict:
+        """obs-websocket の設定を {enabled, port, auth_required, password} で返す。"""
         ...
