@@ -27,6 +27,8 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。
 
+マーカー認識 → クロップ算出 → OBS への適用 → 自動配置を手動で一通り行う手順は [docs/manual-test.md](docs/manual-test.md) を参照。
+
 ## 検証用ツール
 
 `tools/rtmp_sink.py`（標準ライブラリのみ、ffmpeg / ffprobe が必要）

@@ -42,6 +42,7 @@ python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタ�
 .venv/bin/python tools/fix_scale_ref.py [--write]    # キャンバス変更後の scale_ref 修正（OBS 終了中）
 ```
 実験の出力は `experiments/out/`（git 管理外）。
+手動で一連の流れ（計測 → クロップ適用 → 自動配置）を試す手順は `docs/manual-test.md`。
 
 ## 現状のメモ（2026-11-08）
 - Phase 1（E0〜E4）完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
