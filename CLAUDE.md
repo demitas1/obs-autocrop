@@ -3,7 +3,7 @@
 設計方針・仕様の正は [PLAN.md](PLAN.md)。作業前に必ず 0章（実装方針）と 13章（実験結果記録）を確認する。
 
 ## 進め方
-- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 の順。進捗は PLAN.md 13章を参照（E0・E3 完了、E1 は OBS 起動直後の確認を除き完了、次は E2）。
+- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 の順。進捗は PLAN.md 13章を参照（E0・E3・E2・E1 完了、次は E4）。
 - 実験で「要確認」を確定させたら、13章に追記し、該当する本文も更新する。本文と実環境が違えば実環境を正とする。
 - `experiments/` は薄く保ち、ロジックは `src/obs_autocrop/{obsctl,platforms,vision}` に置く。
 - OS 依存処理は `platforms/` に閉じ込め、共通層から `pyudev` や `v4l2-ctl` を直接使わない（PLAN.md 3.1）。
@@ -26,8 +26,10 @@
 .venv/bin/pytest
 .venv/bin/python experiments/e0_inspect.py   # 実環境の検査（読み取り専用）
 .venv/bin/python experiments/e1_websocket.py status|probe --yes   # websocket（probe は OBS を一時変更）
+.venv/bin/python experiments/e2_scene_file.py inspect|set-device --mode M [--write]|restore BACKUP [--write]|verify   # シーンファイル
 .venv/bin/python experiments/e3_devices.py list|check --label X|summary   # カメラ識別
 python3 tools/rtmp_sink.py serve [--discard] [--loop]   # 検証用ローカル RTMP 受信（ffmpeg）
 python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタイムスタンプ欠落検査
+.venv/bin/python tools/fix_scale_ref.py [--write]    # キャンバス変更後の scale_ref 修正（OBS 終了中）
 ```
 実験の出力は `experiments/out/`（git 管理外）。

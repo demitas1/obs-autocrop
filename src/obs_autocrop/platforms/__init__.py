@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from obs_autocrop.platforms.base import CameraLocator, ObsPaths
+from obs_autocrop.platforms.base import CameraLocator, CaptureSourceAdapter, ObsPaths, ObsProcess
 
 
 class UnsupportedPlatform(RuntimeError):
@@ -19,6 +19,8 @@ class UnsupportedPlatform(RuntimeError):
 class Platform:
     camera_locator: CameraLocator
     obs_paths: ObsPaths
+    obs_process: ObsProcess
+    source_adapter: CaptureSourceAdapter
 
 
 def get_platform(config: dict | None = None) -> Platform:
@@ -29,9 +31,13 @@ def get_platform(config: dict | None = None) -> Platform:
     if sys.platform.startswith("linux"):
         from obs_autocrop.platforms.linux.camera import LinuxCameraLocator
         from obs_autocrop.platforms.linux.obs_paths import LinuxObsPaths
+        from obs_autocrop.platforms.linux.obs_process import LinuxObsProcess
+        from obs_autocrop.platforms.linux.v4l2_source import V4L2SourceAdapter
 
         return Platform(
             camera_locator=LinuxCameraLocator(),
             obs_paths=LinuxObsPaths(config_dir, flavor),
+            obs_process=LinuxObsProcess(config.get("obs", {}).get("launch_cmd")),
+            source_adapter=V4L2SourceAdapter(),
         )
     raise UnsupportedPlatform(f"unsupported platform: {sys.platform} (Linux only)")

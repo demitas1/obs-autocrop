@@ -3,8 +3,11 @@
 注意（E1 で確認）:
 - obsws-python は host / port / password をどれも渡さないと、カレントディレクトリの
   config.toml を自前で読みにいく。本ラッパーは常に明示的に渡す。
-- obsws-python は INFO レベルで接続パラメータ（パスワードを含む）をログに出す。
-  ロガーを WARNING に上げて抑止する。
+- obsws-python は INFO レベルで接続パラメータ（パスワードを含む）をログに出し、
+  リクエストの失敗も例外を送出する前に ERROR でトレースバックを出す。
+  例外は呼び出し側で扱うため、ロガーは CRITICAL に上げて抑止する。
+- OBS の起動直後は、接続できてもリクエストが 207（NotReady）で失敗する（E2 で確認）。
+  wait_ready はこれも再試行する。
 """
 
 from __future__ import annotations
@@ -18,7 +21,9 @@ import obsws_python as obsws
 
 from obs_autocrop.models import CropRect
 
-logging.getLogger("obsws_python").setLevel(logging.WARNING)
+logging.getLogger("obsws_python").setLevel(logging.CRITICAL)
+
+NOT_READY = 207  # obs-websocket RequestStatus::NotReady
 
 
 @dataclass(frozen=True)
@@ -50,17 +55,25 @@ class ObsWs:
     def connect(self) -> dict:
         self._client = obsws.ReqClient(host=self.host, port=self.port,
                                        password=self._password, timeout=self.timeout)
-        return self.version()
+        try:
+            return self.version()
+        except Exception:
+            self.disconnect()
+            raise
 
     def wait_ready(self, timeout: float = 30, interval: float = 0.5) -> dict:
+        """OBS が接続を受け付け、リクエストに応答できるようになるまで待つ。"""
         deadline = time.monotonic() + timeout
         while True:
             try:
                 return self.connect()
+            except obsws.error.OBSSDKRequestError as e:
+                if e.code != NOT_READY or time.monotonic() >= deadline:
+                    raise
             except (ConnectionError, OSError, TimeoutError):
                 if time.monotonic() >= deadline:
                     raise
-                time.sleep(interval)
+            time.sleep(interval)
 
     def disconnect(self) -> None:
         if self._client is not None:

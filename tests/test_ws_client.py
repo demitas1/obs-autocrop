@@ -83,3 +83,34 @@ def test_obs_paths_websocket_config(tmp_path):
     (p / "config.json").write_text(json.dumps({
         "server_enabled": True, "server_port": 4455, "auth_required": False, "server_password": "pw"}))
     assert LinuxObsPaths(tmp_path).websocket_config()["password"] == ""
+
+
+def test_wait_ready_retries_not_ready_and_refused(monkeypatch):
+    attempts = []
+
+    class Flaky(FakeReqClient):
+        def __init__(self, **kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise ConnectionRefusedError()
+            super().__init__(**kwargs)
+
+        def send(self, request_type, data=None, raw=False):
+            if request_type == "GetVersion" and len(attempts) < 3:
+                raise ws_client.obsws.error.OBSSDKRequestError("GetVersion", 207, "not ready")
+            return super().send(request_type, data, raw)
+
+    monkeypatch.setattr(ws_client.obsws, "ReqClient", Flaky)
+    c = ObsWs()
+    assert c.wait_ready(timeout=5, interval=0)["obsVersion"] == "32.2.0"
+    assert len(attempts) == 3
+
+
+def test_wait_ready_does_not_retry_other_errors(monkeypatch):
+    class AuthFail(FakeReqClient):
+        def send(self, request_type, data=None, raw=False):
+            raise ws_client.obsws.error.OBSSDKRequestError("GetVersion", 600, "boom")
+
+    monkeypatch.setattr(ws_client.obsws, "ReqClient", AuthFail)
+    with pytest.raises(ws_client.obsws.error.OBSSDKRequestError):
+        ObsWs().wait_ready(timeout=5, interval=0)

@@ -277,6 +277,7 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 | `none` | 書き換えない | 現在の `device_id` を `realpath` で解決し、`node` と一致するか検証する。不一致なら警告する |
 
 - 既定値は `camera.device_id_mode` で決め、CLI の `--device-id-mode` で上書きする。
+- **E2 で確認**: `link` モードで書き込むと、OBS は by-id のパスでカメラを開き、正しく映る。プロパティ画面のデバイス欄にはパスがそのまま表示される（一覧の項目としては選択されていない）。一覧から選び直して OK を押すと `device_id` は `/dev/videoN` に置き換わり、`link` の効果は失われる（OBS のデバイス一覧は `/dev/videoN` のみ）。
 
 ---
 
@@ -298,13 +299,14 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
     2. `backups/<コレクション名>.<タイムスタンプ>.json` にバックアップを取る。
     3. 一時ファイルに書き出し、`os.replace` で置き換える。
   - JSON は `ensure_ascii=False` で書き出し、キーの順序を保持する。
+  - **E2 で確認**: OBS の形式は `indent=4`、末尾改行なし。Python の `json.dumps(indent=4)` と一致する。違いは浮動小数点の表記のみ（OBS は 17 桁。例: `-0.34000000000000002` → `-0.34`）で、値は同じ。変更がなければ書き出し結果はバイト単位で一致する。
 
 ### 6.2 `ws_client.py`（obsws-python のラッパー）
 
 | メソッド | 使う websocket リクエスト | 用途 |
 |---|---|---|
 | `connect(timeout)` | `GetVersion` | 接続とバージョンの確認 |
-| `wait_ready(timeout=30)` | `GetVersion` を 0.5 秒間隔で再試行 | OBS 起動直後の接続待ち |
+| `wait_ready(timeout=30)` | `GetVersion` を 0.5 秒間隔で再試行 | OBS 起動直後の接続待ち。接続拒否に加え、**207（NotReady）も再試行する**（E2 で確認: シーンの読み込み前に接続するとリクエストが 207 で失敗する） |
 | `list_v4l2_inputs()` | `GetInputList(inputKind="v4l2_input")` | |
 | `get_input_settings(name)` | `GetInputSettings` | `device_id` などの確認 |
 | `list_filters(source)` | `GetSourceFilterList` | フィルタの順序（`filterIndex`）と種別の確認 |
@@ -434,6 +436,8 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 13. 微調整モードに入る（--no-adjust で省略できる）
 ```
 
+- **注意（E2 で確認）**: Studio モードで「シーンを複製」が有効な場合、OBS 起動直後のプログラム側の配置がずれることがある（13章）。クロップ（ソースのフィルタ）はプレビュー・プログラムの両方に反映されるが、シーンアイテムの配置はプレビューにしか反映されない。統合フローでは、起動後に Studio モードかどうか（`GetStudioModeEnabled`）を確認し、警告を出す。トランジションの実行（`TriggerStudioModeTransition`）は出力に影響するため、自動では行わず確認を取る。
+
 ### 微調整モード（CLI）
 - 1 行ごとにコマンドを入力すると、即座に適用する。
 
@@ -469,6 +473,7 @@ by_id   = "usb-046d_C922_Pro_Stream_Webcam_ABCD1234-video-index0"   # 優先度 
 ### 9.1 フォーマットの決定規則（計測前）
 1. OBS ソースの `resolution`、`pixelformat`、`framerate` が指定されていれば（`-1` でなければ）、その値を使う。
 2. `-1` の項目は、`config.toml` の `[camera.format]` の既定値を使い、警告を出す。`--write` を指定した場合は JSON にも書き込む。
+   - **E2 で確認（要検討）**: `framerate` を `(1 << 32) | 30` で書くと OBS は 30fps で開くが、4K MJPG のプロパティ画面の選択肢は `('30.00', 30)`（値が 30。32 ビットに切り詰められている可能性）で一致しないため、画面には「Leave Unchanged」と表示され、OK を押すと `-1` で保存される。1080p のときの選択肢（60/50/30/…/5、値は `(1 << 32) | fps`）は汎用の候補だった可能性がある。`framerate` は書き込まず `-1`（デバイスの現在値）とするか、OBS 起動中に `GetInputPropertiesListPropertyItems` で選択肢の値を取得して使うかを Phase 2 で決める。
 3. 既定値は「解像度優先」とする。指定した解像度で使えるフォーマットのうち、目標のフレームレートを満たすものを選ぶ。満たすものがなければ、最もフレームレートの高いものを選んで警告する（解像度は下げない）。
 4. 上記の値がカメラのサポート範囲外なら中断する。サポート範囲は `FormatProber` で取得する（Linux 実装は `v4l2-ctl --list-formats-ext` の出力をパースする）。
 5. FourCC を OpenCV に渡すときは、次のように扱う。
@@ -625,7 +630,14 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-08 | E1 | 試験中のフレーム落ち（2〜3 フレーム）の原因を切り分け: websocket の新規接続時に再現性あり。原因は obs-websocket の `alerts_enabled=true`（トレイ通知）。無効化後は接続・`relative`↔`absolute` 切替・クロップ変更のいずれでも落ちない（32 秒で無関係な 1 フレームのみ）。OBS の「落ちたフレーム」はファイル上では前フレームの複製になり、時間の欠落にはならない | 4.1 に追記 |
 | 2026-11-08 | E1 | 配信中の適用試験: ローカル RTMP 受信（`tools/rtmp_sink.py`、ffmpeg `-listen 1`）に配信（NVENC 6000kbps、3840×2160 30fps）し、0.5 秒間隔で 20 回クロップを変更。配信は継続し再接続なし、フレーム落ちはレンダリング・出力・配信とも 0/317、混雑度 0。受信した FLV（36.8 秒）は 1103/1103 パケットで欠落なし（最大間隔 34ms）。**完了条件（配信・録画）を満たした** | なし |
 | 2026-11-08 | E1 | `SetStreamServiceSettings` は空の `streamServiceSettings` を受け付けない（403）。配信先が未設定の状態（プロファイルに `service.json` がない）へは websocket では戻せない。配信先を設定すると OBS がプロファイルに `service.json` を作る | 検証で配信先を一時変更する場合は、元に戻す方法を事前に決めておく |
-| 2026-11-08 | E1 | 未実施: OBS 起動直後の `wait_ready` / `wait_source_size` の挙動 | E2 で OBS を起動する際に確認 |
+| 2026-11-08 | E2 | シーンコレクションの読み書きを実装（`scene_file.py`、`v4l2_source.py`、`device_id.py`、`obs_paths.py`、`obs_process.py`）。`user.ini` の `SceneCollectionFile` は拡張子付き（`Untitled.json`）だった | 6.1 に保存形式を追記 |
+| 2026-11-08 | E2 | `link` モードで書き込み（OBS 停止中、バックアップあり）→ OBS 起動で by-id のパスのまま正しく映る（2440×1760、輝度 150.9）。プロパティ画面ではパスがそのまま表示され、選び直すと `/dev/video0` に置き換わる | 5.3 に追記 |
+| 2026-11-08 | E2 | `none` モード: `device_id=/dev/video0` が解決結果と一致し、変更・警告なし。不一致時の警告は単体テストで確認 | なし |
+| 2026-11-08 | E2 | バックアップからの復元: 復元後のファイルはバックアップとバイト単位で一致。復元前の状態も自動で退避。`resolved` 相当（`/dev/video0`）の状態で OBS を起動し、正しく映ることを確認（2440×1760、輝度 148.0）。書き込み後も `device_id` 以外の値（未知のキーを含む）は不変。**完了条件を満たした** | なし |
+| 2026-11-08 | E2 | プロパティ画面で OK を押すと `framerate` が `-1` で保存された。4K MJPG の選択肢の値が `30` で、書き込んだ `(1 << 32) \| 30` と一致しないため | 9.1 に要検討事項として追記 |
+| 2026-11-08 | E2 | Studio モード（`SceneDuplicationMode=true`）で起動すると、プログラム側の各アイテムが位置（基準点）は同じで拡大率が 1/2 になる。トランジションで正しくなる。シーンファイルの各アイテムの `scale_ref` が `{1920, 1080}`（キャンバスを 4K に変更する前の値）のままで、起動ログに `Attempted to add Scene without specifying a canvas! Using default canvas instead.` が出ていることから、プログラム用の複製が既定キャンバス基準で `scale_rel` から拡大率を再計算していると推測。ファイルは OBS 自身が保存したもの（バックアップとバイト一致）で、本ツールの書き込みが原因ではない | 8 章と 14 章に注意を追記 |
+| 2026-11-08 | E2 | 上記の対処: 位置を動かして戻す（websocket の `SetSceneItemTransform`）だけでは `scale_ref` は更新されなかった（拡大率の変更でも更新されない）。保存値から `scale = scale_rel × キャンバス高 / scale_ref 高` と逆算でき、プログラム側の複製は `scale_ref` をキャンバスとみなしているとみられる。シーンファイルの各アイテムの `scale_ref` を `{3840, 2160}`、`scale_rel` を `scale` と同じ値に書き換えた（OBS 停止中、バックアップあり。一度きりの修正）ところ、起動直後からプレビューとプログラムが一致した（「シーンを複製」オンのまま）。**キャンバスのサイズを変えたら、各アイテムの `scale_ref` と `scale_rel` を合わせて更新する必要がある** | 回避策を確定。`tools/fix_scale_ref.py` として残した |
+| 2026-11-08 | E1/E2 | OBS 起動直後: ログ上はプロセス起動から websocket サーバー起動まで約 0.8 秒、シーン読み込み完了まで約 1.0 秒、接続・応答まで約 1.2 秒、ソースサイズ取得はその 0.7 秒後（計約 1.9 秒）。シーン読み込み前の接続では `GetVersion` が 207（NotReady）で失敗した → `wait_ready` で 207 を再試行するよう修正。**E1 の残りを完了** | 6.2 に追記 |
 
 ---
 
@@ -633,7 +645,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 
 | 項目 | 内容 | 備考 |
 |---|---|---|
-| シーンアイテムの自動配置 | クロップを適用してサイズが変わったとき、カメラのシーンアイテムをキャンバスの左上を基準に、アスペクト比を保ったまま横いっぱいまたは縦いっぱい（内側に収まる最大サイズ）に配置し直す | 2026-11-08 ユーザー要望。`SetSceneItemTransform` で境界の種類 `OBS_BOUNDS_SCALE_INNER`、境界の大きさ＝キャンバス（`GetVideoSettings` の `baseWidth/Height`）、配置の基準＝左上、位置 (0, 0) を設定する案。現在のアイテムは負のスケール（上下左右反転）で配置されているため、境界を使う場合の反転の扱いを要確認。有効・無効は `config.toml` で選べるようにする |
+| シーンアイテムの自動配置 | クロップを適用してサイズが変わったとき、カメラのシーンアイテムをキャンバスの左上を基準に、アスペクト比を保ったまま横いっぱいまたは縦いっぱい（内側に収まる最大サイズ）に配置し直す | 2026-11-08 ユーザー要望。`SetSceneItemTransform` で境界の種類 `OBS_BOUNDS_SCALE_INNER`、境界の大きさ＝キャンバス（`GetVideoSettings` の `baseWidth/Height`）、配置の基準＝左上、位置 (0, 0) を設定する案。現在のアイテムは負のスケール（上下左右反転）で配置されているため、境界を使う場合の反転の扱いを要確認。有効・無効は `config.toml` で選べるようにする。**Studio モードで「シーンを複製」が有効な場合、`SetSceneItemTransform` はプレビュー側にしか反映されない**ため、プログラムへの反映方法（トランジションの要否）を決める必要がある（E2 で確認） |
 
 ---
 

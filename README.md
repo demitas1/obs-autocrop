@@ -20,8 +20,8 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 |---|---|---|
 | `experiments/e0_inspect.py` | 実環境の検査（読み取り専用。出力は `experiments/out/`） | 完了 |
 | `experiments/e3_devices.py` | カメラの恒久識別 | 完了 |
-| `experiments/e2_scene_file.py` | シーンコレクションの読み書き | 未着手 |
-| `experiments/e1_websocket.py` | websocket 通信 | ほぼ完了（OBS 起動直後の確認が残り） |
+| `experiments/e2_scene_file.py` | シーンコレクションの読み書き | 完了 |
+| `experiments/e1_websocket.py` | websocket 通信 | 完了 |
 | `experiments/e4_aruco.py` | ArUco 認識 | 未着手 |
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。
@@ -37,6 +37,13 @@ python3 tools/rtmp_sink.py serve            # --discard で保存しない、--l
 
 # 映像ファイル（受信した FLV や OBS の録画）のタイムスタンプの欠落を調べる
 python3 tools/rtmp_sink.py analyze FILE
+```
+
+`tools/fix_scale_ref.py`: OBS のキャンバスのサイズを変えた後、Studio モード（シーンを複製）でプログラム側の配置がずれる問題を修正する（各シーンアイテムの `scale_ref` をキャンバスに合わせる）。既定は dry-run、`--write` で書き込む（OBS 終了中のみ、書き込み前にバックアップ）。
+
+```sh
+.venv/bin/python tools/fix_scale_ref.py            # 差分を表示
+.venv/bin/python tools/fix_scale_ref.py --write    # 書き込む
 ```
 
 ## ライセンス

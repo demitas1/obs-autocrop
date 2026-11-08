@@ -107,3 +107,24 @@ class CropRect:
         if s.get("relative", True):
             return cls(left, top, src_w - left - s.get("right", 0), src_h - top - s.get("bottom", 0))
         return cls(left, top, s.get("cx", src_w - left), s.get("cy", src_h - top))
+
+
+@dataclass(frozen=True)
+class CameraSourceConfig:
+    """OBS のカメラソースの設定（OS 非依存のモデル、PLAN.md 3.1）。
+
+    None は「指定なし」（OBS では -1 またはキーなし）。set で None の項目は変更しない。
+    """
+
+    device_ref: str | None = None
+    width: int | None = None
+    height: int | None = None
+    fourcc: str | None = None
+    fps: float | None = None
+
+    def unset_fields(self) -> list[str]:
+        return [k for k in ("width", "height", "fourcc", "fps") if getattr(self, k) is None]
+
+
+class ObsRunning(RuntimeError):
+    pass
