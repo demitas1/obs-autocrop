@@ -188,6 +188,24 @@ class ObsWs:
             data["filterSettings"] = settings
         self._req("CreateSourceFilter", data)
 
+    def set_filter_index(self, source: str, filter_name: str, index: int) -> None:
+        self._req("SetSourceFilterIndex", {"sourceName": source, "filterName": filter_name,
+                                           "filterIndex": index})
+
+    def output_stats(self) -> dict:
+        """配信・録画中の試験用の統計（E1 の live と同じ項目）。"""
+        st, rec, stream = self._req("GetStats"), self._req("GetRecordStatus"), self._req("GetStreamStatus")
+        return {
+            "t": round(time.monotonic(), 3),
+            "render_skipped": st["renderSkippedFrames"], "render_total": st["renderTotalFrames"],
+            "output_skipped": st["outputSkippedFrames"], "output_total": st["outputTotalFrames"],
+            "cpu": round(st["cpuUsage"], 1),
+            "rec_active": rec["outputActive"], "rec_duration_ms": rec.get("outputDuration"),
+            "stream_active": stream["outputActive"], "stream_reconnecting": stream.get("outputReconnecting"),
+            "stream_skipped": stream.get("outputSkippedFrames"), "stream_total": stream.get("outputTotalFrames"),
+            "stream_congestion": stream.get("outputCongestion"),
+        }
+
     def remove_filter(self, source: str, filter_name: str) -> None:
         self._req("RemoveSourceFilter", {"sourceName": source, "filterName": filter_name})
 
