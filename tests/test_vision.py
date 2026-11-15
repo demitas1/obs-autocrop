@@ -235,3 +235,14 @@ def test_parse_list_ctrls():
 def test_parse_get_ctrl():
     assert parse_get_ctrl("focus_absolute: 400\nzoom_absolute: 0\n") == {
         "focus_absolute": 400, "zoom_absolute": 0}
+
+
+def test_pad_detects_markers_touching_frame_edge():
+    # マーカーの黒枠がフレームの上端・左端に接する（射影補正後に R がフレームの端に接する場合）
+    pos = {0: (0, 0), 1: (1700 - S, 0), 2: (1700 - S, 900 - S), 3: (0, 900 - S)}
+    f = synth(pos)
+    with pytest.raises(MeasurementFailed):
+        measure([f], make_detector(), min_valid=1)
+    m, dets = measure([f], make_detector(), min_valid=1, pad_px=32)
+    assert m.crop == CropRect(0, 0, 1700, 900)
+    assert all(-1 < v < 0 for v in dets[0][0][0][0])  # 座標は元の画像に戻っている（左上の角 ≈ (-0.5, -0.5)）

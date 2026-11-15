@@ -92,7 +92,16 @@ def test_target_rect_no_downscale_and_aspect():
 def test_target_rect_shrinks_to_fit():
     quad = np.array([[10, 10], [1910, 10], [1910, 1070], [10, 1070]], float)
     rect, w = target_rect(quad, *FRAME, 0.9)  # 縦長にすると高さが足りない
-    assert rect.h <= FRAME[1] and rect.w <= FRAME[0] and w
+    assert rect.h <= FRAME[1] - 128 and rect.w <= FRAME[0] - 128 and w
+
+
+def test_target_rect_keeps_margin_from_frame_edges():
+    # 上寄りの対象面で R を外接矩形の中心に置くと上にはみ出す → 端から 64px 離して置く（P3 で確認）
+    quad = np.array([[600, 20], [1300, 25], [1400, 700], [500, 695]], float)
+    rect, w = target_rect(quad, *FRAME, 1.0)
+    assert rect.y == 64 and w == []
+    rect0, _ = target_rect(quad, *FRAME, 1.0, margin_px=0)
+    assert rect0.y == 0 and (rect0.w, rect0.h) == (rect.w, rect.h)  # 位置だけが変わる
 
 
 @pytest.mark.parametrize("quad", [

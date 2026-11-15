@@ -96,31 +96,42 @@ def check_quad(quad) -> None:
 
 # ---------------------------------------------------------------- 補正後の矩形 R
 
-def target_rect(quad_edge, width: int, height: int, aspect: float) -> tuple[CropRect, list[str]]:
+EDGE_MARGIN_PX = 64
+
+
+def target_rect(quad_edge, width: int, height: int, aspect: float,
+                margin_px: int = EDGE_MARGIN_PX) -> tuple[CropRect, list[str]]:
     """補正後の矩形 R（縦横比 aspect = 高さ / 幅、PLAN.md 15.3）。
 
     - 大きさ: 再サンプリングで縮小しないよう、補正前の上下の辺の長い方を幅、左右の辺の長い方を高さの
-      下限とし、両方を満たす最小の大きさにする。フレームに収まらなければ縮小して警告する。
-    - 位置: 補正前の四隅の外接矩形の中心に合わせ、フレーム内に収める。
+      下限とし、両方を満たす最小の大きさにする。フレームの端から margin_px の内側に収まらなければ
+      縮小して警告する。
+    - 位置: 補正前の四隅の外接矩形の中心に合わせ、フレームの端から margin_px 以上離す。
+      R の位置は補正の画質に影響しない（Crop/Pad で切り出すだけ）。端に接すると補正後のマーカーも
+      端に接し、確認のための再検出で角が数 px ずれるため、余白を取る（P3 で確認）。
     - 座標は画素の境界の整数。
     """
     if aspect <= 0:
         raise PerspectiveError(f"縦横比が不正です: {aspect}")
+    aw, ah = width - 2 * margin_px, height - 2 * margin_px
+    if aw <= 0 or ah <= 0:
+        raise PerspectiveError(f"margin_px {margin_px} がフレーム {width}x{height} に対して大きすぎます")
     top, right, bottom, left = side_lengths(quad_edge)
     w = max(max(top, bottom), max(left, right) / aspect)
     warnings = []
-    if w > width or w * aspect > height:
-        s = min(width / w, height / (w * aspect))
-        warnings.append(f"補正後の矩形がフレームに収まらないため {s:.3f} 倍に縮小しました（実効解像度が下がります）")
+    if w > aw or w * aspect > ah:
+        s = min(aw / w, ah / (w * aspect))
+        warnings.append(f"補正後の矩形がフレーム（端から {margin_px}px の内側）に収まらないため {s:.3f} 倍に"
+                        "縮小しました（実効解像度が下がります）")
         w *= s
-    rw = min(int(math.floor(w + 1e-6)), width)
-    rh = min(int(round(rw * aspect)), height)
+    rw = min(int(math.floor(w + 1e-6)), aw)
+    rh = min(int(round(rw * aspect)), ah)
     q = np.asarray(quad_edge, np.float64).reshape(4, 2)
     cx, cy = (q[:, 0].min() + q[:, 0].max()) / 2, (q[:, 1].min() + q[:, 1].max()) / 2
     x = int(round(cx - rw / 2))
     y = int(round(cy - rh / 2))
-    x = min(max(x, 0), width - rw)
-    y = min(max(y, 0), height - rh)
+    x = min(max(x, margin_px), width - margin_px - rw)
+    y = min(max(y, margin_px), height - margin_px - rh)
     return CropRect(x, y, rw, rh), warnings
 
 

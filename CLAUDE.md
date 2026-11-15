@@ -47,9 +47,13 @@ python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタ�
 実験の出力は `experiments/out/`（git 管理外）。
 手動で一連の流れ（計測 → クロップ適用 → 自動配置）を試す手順は `docs/manual-test.md`。
 
-## 現状のメモ（2026-11-08）
-- E0〜E4 完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。射影補正の基礎技術確認（P0〜P3）も完了し、Phase 1 完了（obs-shaderfilter 2.6.1 を `~/.config/obs-studio/plugins/` に導入済み）。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
-- カメラのソースの先頭に射影補正のフィルタ `Perspective`（`shader_filter`、v1）を追加済み（P1）。P3 の計測値（対象面 250×174mm）の行列が有効で、Crop/Pad は R（x=1134 y=241 w=1812 h=1261、`relative=false`）、自動配置は top-left（(0,0)-(3103,2160)）。適用前の状態は `experiments/out/p3-before-20261115-164344.json`（`p3_perspective.py restore` で戻せる）。フィルタの削除は `p1_perspective.py remove --yes`
+## 現状のメモ（2026-11-15）
+- Phase 1（E0〜E4、射影補正の基礎技術確認 P0〜P3）完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。射影補正の作業ブランチ `perspective` は main にマージ済み。次は Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
+- obs-shaderfilter 2.6.1 を `~/.config/obs-studio/plugins/` に導入済み。カメラのソースのフィルタは `[0] Perspective`（`shader_filter`、v1）→ `[1] Crop/Pad` → `[2] Color Correction`。
+- OBS は台形補正を適用した状態（ユーザーの手動テスト、スケッチブック）: Perspective に行列が有効、Crop/Pad は R（x=760 y=64 w=2110 h=1630、`relative=false`）。適用前の状態は `experiments/out/p3-before-20261115-171053.json`（`p3_perspective.py restore` で戻せる）。最新の結果は `experiments/out/p3-log.jsonl`。
+- `config.toml` の `[perspective]` は `aspect_source = "markers"`。`target_mm = [250, 174]` は 1 回目の P3 の板の寸法で、今の対象面とは違う（照合の警告が出る。更新か削除）。
+- カメラのフォーカスはオートのまま。計測時と OBS の使用時でピントが変わると像の大きさが 0.2〜0.3% 変わり、`verify` の四隅が数 px 外側にずれる（PLAN.md 13章・7.3）。±1px が必要ならフォーカスを固定する。
 - 未決定事項:
   - `framerate` を JSON に書くか（OBS のプロパティ画面の選択肢の値と一致せず、OK で `-1` に戻る。PLAN.md 9.1）
-  - 計測結果の保存先（PLAN.md 7.5 の `~/.local/state/obs-autocrop/`）は Phase 2 で実装。E4 では `experiments/out/e4-last.json`
+  - 計測結果の保存先（PLAN.md 7.5 の `~/.local/state/obs-autocrop/`）は Phase 2 で実装。E4 は `experiments/out/e4-last.json`、射影補正は `p3-last.json`
+  - フォーカスを固定するか（上記）

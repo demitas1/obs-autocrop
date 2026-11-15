@@ -47,6 +47,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "experiments" / "out"
 LOG = OUT / "p3-log.jsonl"
 LAST = OUT / "p3-last.json"
+PAD_PX = 64  # 補正後の確認で足す白い余白（px）
 
 
 def log(rec: dict) -> None:
@@ -72,8 +73,11 @@ def quad_of(m: vdet.Measurement) -> list:
 
 
 def check_rectified(frame: np.ndarray, rect: CropRect, det, ids, aspect: float) -> dict:
-    """補正後の画像（クロップ前の全体）でマーカーを再検出し、R との一致と正方形らしさを調べる。"""
-    m2, dets2 = vdet.measure([frame], det, ids, min_valid=1)
+    """補正後の画像（クロップ前の全体）でマーカーを再検出し、R との一致と正方形らしさを調べる。
+
+    R がフレームの端に接すると、補正後のマーカーも端に接して検出されないため、白で余白を足して検出する。
+    """
+    m2, dets2 = vdet.measure([frame], det, ids, min_valid=1, pad_px=PAD_PX)
     quad2 = np.array(quad_of(m2))
     expect = rect_corners_edge(rect) - 0.5  # 画素中心の座標
     err = quad2 - expect
@@ -127,10 +131,14 @@ def cmd_measure(cfg, plat, args) -> int:
         print(f"WARN: {w}")
     # 予測: シェーダーと同じ計算で補正して再検出する
     rectified, _ = warp_like_shader(frames[-1], np.array(res.matrix))
-    pred = check_rectified(rectified, res.rect, det, ids, res.aspect)
-    print(f"予測（補正後に再検出）: 四隅の誤差 最大 {pred['corner_err_max']}px  "
-          f"マーカーの縦横比の偏り 最大 {pred['marker_ratio_dev_max']:.3%}  四隅の縦横比と採用値の差 "
-          f"{pred['quad_aspect_vs_target']:+.3%}")
+    try:
+        pred = check_rectified(rectified, res.rect, det, ids, res.aspect)
+        print(f"予測（補正後に再検出）: 四隅の誤差 最大 {pred['corner_err_max']}px  "
+              f"マーカーの縦横比の偏り 最大 {pred['marker_ratio_dev_max']:.3%}  四隅の縦横比と採用値の差 "
+              f"{pred['quad_aspect_vs_target']:+.3%}")
+    except vdet.MeasurementFailed as e:  # 予測は確認用なので、失敗しても計算結果は保存する
+        pred = {"error": str(e)}
+        print(f"WARN: 予測（補正後の再検出）に失敗しました: {e}")
     e4.save_img(frames[-1], f"p3-{s}-frame.jpg", 95)
     ov = e4.save_img(vdet.draw_overlay(frames[-1], dets[-1], m), f"p3-{s}-overlay.jpg")
     rr = rectified.copy()
@@ -241,7 +249,7 @@ def cmd_verify(cfg, plat, args) -> int:
     print(f"  補正後の外接矩形 {r['crop_from_rectified']}  R {rect.__dict__}")
     for w in r["skew_warnings"]:
         print(f"  WARN: {w}")
-    zm = vdet.measure([img], e4.detector(cfg), ids, min_valid=1)[0]
+    zm = vdet.measure([img], e4.detector(cfg), ids, min_valid=1, pad_px=PAD_PX)[0]
     e4.save_img(vdet.corner_zooms(img, zm), f"p3-{s}-verify-corners.png")
     print(f"saved: {path}")
     log({"cmd": "verify", "label": args.label, "rect": rect.__dict__, **r})

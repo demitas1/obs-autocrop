@@ -40,15 +40,23 @@ def make_detector(dictionary: str = "DICT_4X4_50", win_max: int = 103,
     return cv2.aruco.ArucoDetector(get_dictionary(dictionary), params)
 
 
-def detect(frame: np.ndarray, detector: cv2.aruco.ArucoDetector) -> dict[int, list[np.ndarray]]:
-    """ID → 検出された角の配列（4x2、マーカー自身の向きで 左上・右上・右下・左下）のリスト。"""
+def detect(frame: np.ndarray, detector: cv2.aruco.ArucoDetector,
+           pad_px: int = 0) -> dict[int, list[np.ndarray]]:
+    """ID → 検出された角の配列（4x2、マーカー自身の向きで 左上・右上・右下・左下）のリスト。
+
+    pad_px > 0 のときは、周囲を白で pad_px だけ広げてから検出し、座標を元の画像に戻す。
+    OpenCV はフレームの端に接するマーカーを検出しない（minDistanceToBorder、白い余白も欠ける）ため、
+    射影補正後の確認（R がフレームの端に接する場合）で使う（P3 で確認）。
+    """
     gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if pad_px:
+        gray = cv2.copyMakeBorder(gray, pad_px, pad_px, pad_px, pad_px, cv2.BORDER_CONSTANT, value=255)
     corners, ids, _ = detector.detectMarkers(gray)
     out: dict[int, list[np.ndarray]] = {}
     if ids is None:
         return out
     for c, i in zip(corners, ids.flatten()):
-        out.setdefault(int(i), []).append(c.reshape(4, 2).astype(np.float64))
+        out.setdefault(int(i), []).append(c.reshape(4, 2).astype(np.float64) - pad_px)
     return out
 
 
@@ -119,12 +127,13 @@ def assign_positions(points: dict[int, tuple[float, float]]) -> list[int]:
 
 def measure(frames: list[np.ndarray], detector: cv2.aruco.ArucoDetector,
             ids: tuple[int, ...] = (0, 1, 2, 3), min_valid: int = 5, margin_px: int = 0,
-            skew_tol_ratio: float = 0.01) -> tuple[Measurement, list[dict[int, list[np.ndarray]]]]:
-    """複数フレームから計測する（7.4 の 2〜8）。検出結果（フレームごと）も返す。"""
+            skew_tol_ratio: float = 0.01,
+            pad_px: int = 0) -> tuple[Measurement, list[dict[int, list[np.ndarray]]]]:
+    """複数フレームから計測する（7.4 の 2〜8）。検出結果（フレームごと）も返す。pad_px は detect と同じ。"""
     if not frames:
         raise MeasurementFailed("フレームがありません")
     h, w = frames[0].shape[:2]
-    all_dets = [detect(f, detector) for f in frames]
+    all_dets = [detect(f, detector, pad_px) for f in frames]
     valid = [d for d in all_dets if all(len(d.get(i, [])) == 1 for i in ids)]
     if len(valid) < min_valid:
         seen = {i: sum(len(d.get(i, [])) == 1 for d in all_dets) for i in ids}
