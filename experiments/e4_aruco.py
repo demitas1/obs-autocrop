@@ -35,6 +35,7 @@ import numpy as np
 from obs_autocrop.config import DEFAULT_CONFIG_PATH, camera_identity, load_config
 from obs_autocrop.models import CropRect
 from obs_autocrop.obsctl.scene_file import SceneCollection
+from obs_autocrop.obsctl.shader_filter import PerspectiveFilter, check_filter_order
 from obs_autocrop.platforms import get_platform
 from obs_autocrop.vision import capture as vcap
 from obs_autocrop.vision import detect as vdet
@@ -285,12 +286,18 @@ def cmd_apply(cfg, plat, args) -> int:
         mine = next((f for f in filters if f.name == filt), None)
         if mine is None:
             sys.exit(f"フィルタ {filt!r} が {source!r} にありません")
-        before = [f for f in filters if f.index < mine.index and f.enabled]
         dev = ws.get_input_settings(source)["inputSettings"].get("device_id")
         node = resolve_node(cfg, plat)
-        problems = []
-        if before:
-            problems.append(f"{filt} より前に有効なフィルタがあります: {[f.name for f in before]}")
+        # 射影補正のフィルタ（15章）が先頭にある場合は、それだけを前段に許す
+        pcfg = cfg.get("perspective", {})
+        pname = pcfg.get("filter_name", "Perspective")
+        persp = next((f for f in filters if f.name == pname), None)
+        problems = check_filter_order(filters, filt, pname if persp else None)
+        if persp and persp.enabled:
+            st = PerspectiveFilter(ws, source, pname).status()
+            if st.matrix is not None and not np.allclose(st.matrix, np.eye(3), atol=1e-9):
+                problems.append(f"射影補正 {pname!r} が有効で単位行列ではありません。補正前の画像で計測した"
+                                "外接矩形は使えません（射影補正の R を使う。PLAN.md 15.3）")
         if not plat.source_adapter.same_device(dev, node):
             problems.append(f"device_id {dev!r} が計測したカメラ {node} と一致しません")
         backup = OUT / f"e4-crop-before-{s}.json"

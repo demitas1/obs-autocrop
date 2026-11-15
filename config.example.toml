@@ -58,3 +58,15 @@ adaptive_win_step = 10
 
 [layout]                                  # シーンアイテムの自動配置（PLAN.md 14章）
 anchor = "top-left"                       # top-left: 左上を左上に / top-right: 右上を右上に / top-center: 上辺中央を上辺中央に
+
+[perspective]                             # 射影補正（台形補正）の拡張（PLAN.md 15章、docs/PLAN_perspective.md）
+enabled = false
+filter_name = "Perspective"
+shader_path = "shaders/perspective.shader"  # 本文を shader_text にインラインで書き込む
+aspect_source = "markers"                 # markers（既定。マーカーから推定、実寸の測定は不要）| target_mm
+# target_mm = [250, 174]                  # 任意。対象面の実寸（W, H、mm）。target_mm モードでは必須。比だけを使う
+aspect_verify = true                      # target_mm があるとき、マーカーからの推定値と照合して警告する
+aspect_verify_tol = 0.01
+aspect_residual_warn = 0.01
+outside = "transparent"                   # transparent | black
+max_skew_warn_deg = 25
