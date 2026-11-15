@@ -56,4 +56,4 @@ python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタ�
 - 未決定事項:
   - `framerate` を JSON に書くか（OBS のプロパティ画面の選択肢の値と一致せず、OK で `-1` に戻る。PLAN.md 9.1）
   - 計測結果の保存先（PLAN.md 7.5 の `~/.local/state/obs-autocrop/`）は Phase 2 で実装。E4 は `experiments/out/e4-last.json`、射影補正は `p3-last.json`
-  - フォーカスを固定するか（上記）
+  - オートフォーカスによるずれの扱い: 許容すると決定（2026-11-15）。verify の許容差や警告などの具体的な設計は Phase 2 以降
