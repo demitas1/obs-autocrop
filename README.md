@@ -24,11 +24,13 @@ cp config.example.toml config.toml       # 環境に合わせて編集
 | `experiments/e1_websocket.py` | websocket 通信 | 完了 |
 | `experiments/e4_aruco.py` | ArUco 認識（マーカー生成、計測、OBS への適用） | 完了 |
 | `experiments/e5_layout.py` | シーンアイテムの自動配置（PLAN.md 14章、Phase 1 の後に追加） | 完了 |
-| P0〜P3 | 射影補正（台形補正）の基礎技術確認（PLAN.md 12章・15章、[docs/PLAN_perspective.md](docs/PLAN_perspective.md)） | 未着手 |
+| `experiments/p0_shaderfilter.py` | P0: obs-shaderfilter の実機確認（射影補正の基礎技術確認。PLAN.md 12章・15章、[docs/PLAN_perspective.md](docs/PLAN_perspective.md)） | 完了 |
+| P2・P1・P3 | 射影補正の計算、websocket での設定、実機での総合確認 | 未着手 |
 
 結果は [PLAN.md](PLAN.md) の 13章に記録する。
 
 マーカー認識 → クロップ算出 → OBS への適用 → 自動配置を手動で一通り行う手順は [docs/manual-test.md](docs/manual-test.md) を参照。
+射影補正で使う obs-shaderfilter の導入手順は [docs/install-shaderfilter.md](docs/install-shaderfilter.md) を参照。
 
 ## 検証用ツール
 

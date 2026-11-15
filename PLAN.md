@@ -615,7 +615,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 
 #### P0: 実環境の検査（obs-shaderfilter）
 - **内容**
-  - obs-shaderfilter を導入する（当環境は未導入。13章）。導入方法（ビルド済みパッケージかソースからのビルドか）は事前にユーザーに確認し、導入作業はユーザーの確認を取ってから行う。
+  - obs-shaderfilter を導入する（当環境は未導入。13章）。まずビルド済みパッケージで試す（2026-11-15 ユーザー判断）。手順は [docs/install-shaderfilter.md](docs/install-shaderfilter.md)。読み込めなければソースからのビルドを検討する。導入作業はユーザーが行う。
   - バージョン、フィルタの種別 ID、設定の JSON のキー（シェーダーの指定方法: ファイル参照かインラインか）、uniform がプロパティになる条件（型、注釈、既定値）、websocket から uniform の値を設定するキー名を確認する。
   - コンパイルエラーは画面に出ず OBS のログに出るため、ログの確認方法も記録する。
 - **完了条件**
@@ -691,6 +691,13 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 | 2026-11-08 | E4 | 傾きの警告: 上辺 61px、右辺 54px、下辺 36px（許容は幅・高さの 1%）。マーカーの配置が軸と平行でないためで、矩形は 4 隅を囲む最小の矩形になる。各辺で最も外側のマーカーの外縁がクロップの境界に接している（拡大画像で確認） | なし |
 | 2026-11-08 | E4 | OBS の起動前後で V4L2 コントロールの値は全く変わらなかった | 7.3 を確定 |
 | 2026-11-08 | E4 | websocket で OBS に適用（`relative=false`）。ソースサイズは 2310×1649 で一致。9.2 の確認（前段のフィルタ、`device_id`、Crop/Pad 無効時の素のサイズ 3840×2160）はすべて問題なし。ユーザーの目視で正しくクロップされていることを確認。**完了条件を満たした（E4 完了、Phase 1 完了）** | なし |
+| 2026-11-15 | P0 | obs-shaderfilter 2.6.1 のビルド済みパッケージ（`obs-shaderfilter-2.6.1-ubuntu-22.04.tar.gz`、.deb はない）を事前確認: SHA256 は GitHub の digest と一致、中身はユーザーごとのプラグインディレクトリの形式（`bin/64bit/obs-shaderfilter.so` と `data/`）、当環境で `ldd` に未解決なし（`libobs.so.0` → OBS 32.2.0）、必要な glibc は 2.34 まで。同梱の `examples/perspective.shader` は角度指定の 3D 回転で、任意の射影行列は渡せない | 導入手順を `docs/install-shaderfilter.md` に作成 |
+| 2026-11-15 | P0 | obs-shaderfilter 2.6.1 をビルド済みパッケージから `~/.config/obs-studio/plugins/obs-shaderfilter/` に導入。OBS 32.2.0 で読み込み成功（ログ `[obs-shaderfilter] loaded version 2.6.1`、`Loaded Modules:` に `obs-shaderfilter.so`）。プラグインマネージャーで有効、フィルタの追加メニューに「User-defined shader」が出る。ログの decklink の `Failed to load 'en-US' text` は導入前から出ている | `docs/install-shaderfilter.md` に結果を追記 |
+| 2026-11-15 | P0 | websocket（読み取り）: フィルタの種別 ID は `shader_filter`。既定の設定は `shader_text`（パススルーのシェーダー）のみ。ソースコード（2.6.1）から: `from_file`（bool）が真なら `shader_file_name` のファイルを読み、偽なら `shader_text` を使う。uniform の値は設定の **uniform 名と同じキー** から読む（float は `obs_data_get_double`、int・bool も同様）。ほかのキーは `override_entire_effect`（`.effect` を使う場合）、`expand_left/right/top/bottom`、`audio_source`。実機での設定・反映の確認は未実施 | P0 の残り（実機での確認）へ |
+| 2026-11-15 | P0 | 実機確認（`experiments/p0_shaderfilter.py`、テスト用に Image ソース 1430×1240 へ `shaders/perspective.shader` をインラインで追加）。uniform `m00`〜`m22` は `CreateSourceFilter` / `SetSourceFilterSettings` の設定キーとしてそのまま使え、値の変更は即座に反映される（設定から画像の変化まで約 0.17 秒、うちスクリーンショット取得が約 0.09 秒）。OpenCV で同じ規約（画素中心 `(i+0.5)/W`、バイリニア）で計算した期待画像と比較: 単位行列は完全一致、平行移動・拡大縮小・射影は 99% の画素で差 1 以下（RGB 0〜255）、入力の範囲外はアルファ 0。**座標の規約（15.2 の 1）を確認した** | 15.2 の 1 を確定 |
+| 2026-11-15 | P0 | **`shader_text` を websocket で書き換えても再コンパイルされない**（赤一色のシェーダーに変えても画像は不変）。再コンパイルはフィルタの作成時・シーンの読み込み時、プロパティ画面でのファイル名・`from_file` の変更、「エフェクトを再読み込み」ボタンのときだけ（ソースコード 2.6.1 でも確認）。コンパイルに失敗すると、設定の `last_error` にエラー文（例: `error C1503: undefined variable`）が入り、ログに `[obs-shaderfilter] Unable to create effect` が出て、**映像はそのまま素通しになる**（画面にはエラーが出ない） | 15.4 の 3 の判断材料。作成後に `last_error` を確認する |
+| 2026-11-15 | P0 | 原寸（1430×1240）の PNG のスクリーンショットは 1 枚 1.13 秒かかる（JPEG なら 0.09 秒、幅 320 の PNG で 0.09 秒）。反映の速さの計測には縮小したスクリーンショットを使う | なし |
+| 2026-11-15 | P0 | 保存と再起動: OBS の終了時にシーンコレクションへ `id`/`versioned_id` = `shader_filter`、`settings` に `shader_text`（本文全体）と `m00`〜`m22`（既定値と同じ値も明示的に）が保存された。再起動後は保存した本文からエラーなくコンパイルされ（`last_error` なし、ログにエラーなし）、行列の値も復元された。比較の結果は再起動前と同じ（反映 0.147 秒）。テスト用フィルタは削除済み。**P0 の完了条件を満たした**（シェーダーの配布方法はインラインに決定、15.4 の 3） | 次は P2 |
 | 2026-11-15 | 15章 | 射影補正の拡張（`docs/PLAN_perspective.md`）を取り込む前の確認: obs-shaderfilter は未導入（`/usr/lib/x86_64-linux-gnu/obs-plugins/` に該当なし、`~/.config/obs-studio/plugins/` もない）。E4 の計測ではマーカーの写る大きさが 225〜236px と約 5% 違い、カメラは正対からわずかに傾いている | 15章を追加 |
 | 2026-11-08 | 14章 | シーンアイテムの自動配置: 2310×1649 のクロップに `top-left` で適用。縦がいっぱい（拡大率 2160/1649）で表示範囲 (0, 0)–(3025, 2160)。初回は位置 3025.83 を指定したが OBS が 3026 に丸めて保存し、左端が 0.17px ずれた → 表示サイズを整数に切り捨てる方式に変更。Studio モードではプレビューにのみ反映され、ユーザーのトランジションでプログラムにも同じ配置で反映された。ユーザーの目視で確認 | 14章を実装済みに更新 |
 | 2026-11-08 | E1/E2 | OBS 起動直後: ログ上はプロセス起動から websocket サーバー起動まで約 0.8 秒、シーン読み込み完了まで約 1.0 秒、接続・応答まで約 1.2 秒、ソースサイズ取得はその 0.7 秒後（計約 1.9 秒）。シーン読み込み前の接続では `GetVersion` が 207（NotReady）で失敗した → `wait_ready` で 207 を再試行するよう修正。**E1 の残りを完了** | 6.2 に追記 |
@@ -738,7 +745,7 @@ Idle → Measuring → Measured → Launching → Connected ⇄ Adjusting
 |---|---|---|
 | 1 | `canvas_mm` の改名 | **決定:** `target_mm` に改名（15.2 の 3） |
 | 2 | 動作モード | **決定:** 15.3 |
-| 3 | シェーダーの配布方法（同梱してパスで参照 / 設定にインライン） | 未決定。P0 で決める。Flatpak 版の OBS はサンドボックスのため、ホストのファイルを参照できない可能性がある。リポジトリのファイルを正としつつ、websocket でシェーダーの本文を設定に書き込む方式も候補 |
+| 3 | シェーダーの配布方法 | **決定（2026-11-15）: インライン。** リポジトリの `shaders/perspective.shader` を正とし、ツールが本文を `shader_text` に書き込んでフィルタを作る。1 行目の版の印（`// obs-autocrop-perspective v1`）を OBS 側と比べ、古ければ明示的なコマンド（ユーザーの確認あり）でフィルタを作り直す（`RemoveSourceFilter` → `CreateSourceFilter` → 順序を先頭に戻す）。websocket で本文を書き換えても再コンパイルされないため（P0）。作成後は `last_error` を確認し、エラーがあれば中断する（失敗は素通しになるため） |
 | 4 | GUI での四隅の手動微調整 | **決定:** Phase 3 に含める |
 | 5 | 着手時期 | **決定:** 基礎技術確認（P0〜P3）を Phase 1 に加える |
 
@@ -768,7 +775,7 @@ obs-autocrop/
 │   ├── rtmp_sink.py      # ローカル RTMP 受信と映像ファイルの欠落検査（標準ライブラリ + ffmpeg、E1）
 │   └── fix_scale_ref.py  # キャンバス変更後のシーンアイテムの scale_ref 修正（E2）
 ├── shaders/      {perspective.shader}   # 射影補正（15章、未着手）
-├── docs/         {manual-test.md, PLAN_perspective.md}   # 手動テスト手順、射影補正の拡張企画
+├── docs/         {manual-test.md, PLAN_perspective.md, install-shaderfilter.md}   # 手動テスト手順、射影補正の拡張企画、obs-shaderfilter の導入手順
 ├── tests/        {fixtures/, test_*.py}
 ├── backups/      # .gitignore に追加
 └── logs/         # .gitignore に追加

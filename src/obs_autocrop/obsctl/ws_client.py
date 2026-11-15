@@ -181,6 +181,16 @@ class ObsWs:
         self._req("SetSourceFilterSettings", {"sourceName": source, "filterName": filter_name,
                                               "filterSettings": settings, "overlay": overlay})
 
+    def create_filter(self, source: str, filter_name: str, kind: str, settings: dict | None = None) -> None:
+        """フィルタを追加する（シーンコレクションが変わる。呼び出し側でユーザーの確認を取ること）。"""
+        data = {"sourceName": source, "filterName": filter_name, "filterKind": kind}
+        if settings:
+            data["filterSettings"] = settings
+        self._req("CreateSourceFilter", data)
+
+    def remove_filter(self, source: str, filter_name: str) -> None:
+        self._req("RemoveSourceFilter", {"sourceName": source, "filterName": filter_name})
+
     def set_filter_enabled(self, source: str, filter_name: str, enabled: bool) -> None:
         self._req("SetSourceFilterEnabled", {"sourceName": source, "filterName": filter_name,
                                              "filterEnabled": enabled})

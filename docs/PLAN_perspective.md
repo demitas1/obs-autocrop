@@ -128,10 +128,11 @@
 - 処理: 出力 UV → M → 入力 UV を求め、入力のテクスチャから色を取る。
 - 範囲外の扱い: 入力 UV が 0〜1 の外になる画素は透明（アルファ 0）にする。黒にするかは設定で切り替える。
 - 補間: テクスチャのサンプラー設定に従う（バイリニア補間）。
-- **要確認（P0）**
-  - obs-shaderfilter のシェーダー記法（OBS のエフェクト言語）
-  - uniform がプロパティとして公開される条件（型、既定値、注釈）
-  - シェーダーの指定方法（ファイルパスを参照するか、設定にインラインで書くか）
+- **P0 で確認（2026-11-15、`PLAN.md` 13章）**
+  - 記法: OBS 版の HLSL。`float4 mainImage(VertData v_in) : TARGET` を書き、`image.Sample(textureSampler, uv)` で入力を取る（`shaders/perspective.shader`）。
+  - uniform（`uniform float m00 = 1.0;` など）は、設定の uniform 名と同じキーで値を受け取る。websocket の `SetSourceFilterSettings` で変更すると即座に反映される。
+  - シェーダーの指定: `from_file` が真なら `shader_file_name` のファイル、偽なら `shader_text` の本文。**本文やファイルの中身を変えても websocket だけでは再コンパイルされない**（作成時・読み込み時・プロパティ画面の操作時のみ）。
+  - コンパイルに失敗すると設定の `last_error` にエラー文が入り、映像は素通しになる。
 
 ---
 
@@ -173,7 +174,7 @@
 [perspective]
 enabled = true
 filter_name = "Perspective"
-shader_path = "shaders/perspective.shader"   # P0 の結果によってはインライン指定にする
+shader_path = "shaders/perspective.shader"   # 本文を shader_text にインラインで書き込む（P0 で決定）
 aspect_source = "target_mm"                   # target_mm | markers
 target_mm = [600, 340]                        # 対象面の実寸（W, H）。aspect_source = "markers" のときは省略できる
 aspect_verify = false                         # target_mm のとき、マーカーからの推定値と照合する
@@ -237,5 +238,5 @@ max_skew_warn_deg = 25                        # 極端な傾きの警告しき�
 |---|---|---|
 | 1 | 出力フレームとアスペクト比が違う場合の扱い（`contain` / `cover` / `stretch`） | **決定（2026-11-15）:** シェーダー側では扱わない。Crop/Pad で R を切り出したあと、本体 14章の自動配置（`contain` 相当）で扱う。`fit` の設定は削除 |
 | 2 | 動作モード（射影変換のみで完結 / 正対化＋既存の Crop/Pad） | **決定（2026-11-15）:** 正対化＋既存の Crop/Pad（`PLAN.md` 15.3） |
-| 3 | シェーダーの配布方法（同梱してパスで参照 / 設定にインライン） | 未決定。P0 の結果で決める |
+| 3 | シェーダーの配布方法（同梱してパスで参照 / 設定にインライン） | **決定（2026-11-15）:** インライン。リポジトリの `shaders/perspective.shader` を正とし、本文を `shader_text` に書き込む。版の印（1 行目）が古ければ明示的なコマンドでフィルタを作り直す（`PLAN.md` 15.4） |
 | 4 | GUI での四隅の手動微調整を Phase 3 の範囲に含めるか | **決定（2026-11-15）:** 含める |
