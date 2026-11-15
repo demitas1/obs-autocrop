@@ -3,7 +3,7 @@
 設計方針・仕様の正は [PLAN.md](PLAN.md)。作業前に必ず 0章（実装方針）と 13章（実験結果記録）を確認する。
 
 ## 進め方
-- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 → P0 → P2 → P1 → P3 の順。進捗は PLAN.md 13章を参照（E0〜E4・P0 完了。次は P2。PLAN.md 12章・15章）。
+- Phase 1 の実験は E0 → E3 → E2 → E1 → E4 → P0 → P2 → P1 → P3 の順。進捗は PLAN.md 13章を参照（E0〜E4・P0・P2 完了。次は P1。PLAN.md 12章・15章）。
 - 実験で「要確認」を確定させたら、13章に追記し、該当する本文も更新する。本文と実環境が違えば実環境を正とする。
 - `experiments/` は薄く保ち、ロジックは `src/obs_autocrop/{obsctl,platforms,vision}` に置く。
 - OS 依存処理は `platforms/` に閉じ込め、共通層から `pyudev` や `v4l2-ctl` を直接使わない（PLAN.md 3.1）。
@@ -46,7 +46,7 @@ python3 tools/rtmp_sink.py analyze FILE              # 映像ファイルのタ�
 手動で一連の流れ（計測 → クロップ適用 → 自動配置）を試す手順は `docs/manual-test.md`。
 
 ## 現状のメモ（2026-11-08）
-- E0〜E4 完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。射影補正の基礎技術確認は P0 完了（obs-shaderfilter 2.6.1 を `~/.config/obs-studio/plugins/` に導入済み）。次は P2（`vision/homography.py`、OBS 不要）→ P1 → P3。その後 Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
+- E0〜E4 完了。シーンアイテムの自動配置（PLAN.md 14章）も実装済み。射影補正の基礎技術確認は P0・P2 完了（obs-shaderfilter 2.6.1 を `~/.config/obs-studio/plugins/` に導入済み）。P2（`vision/homography.py`）も完了。次は P1（カメラのソースへの行列の設定、配信中・録画中の更新）→ P3。その後 Phase 2（`cli.py`、`launcher.py`、統合フロー。PLAN.md 8章）。
 - カメラのシーンアイテムは自動配置（top-left、表示範囲 (0,0)-(3025,2160)）を適用し、プログラムにも反映済み。元の変換は `experiments/out/e5-transform-before-20261108-165940.json`
 - OBS の Crop/Pad は E4 の計測値（x=904 y=66 w=2310 h=1649、`relative=false`）が適用された状態。適用前の設定は `experiments/out/e4-crop-before-*.json`（`restore-crop` で戻せる）。
 - 未決定事項:

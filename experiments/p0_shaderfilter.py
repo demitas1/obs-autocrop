@@ -34,6 +34,7 @@ from PIL import Image
 from obs_autocrop.config import DEFAULT_CONFIG_PATH, load_config
 from obs_autocrop.obsctl.ws_client import ObsWs
 from obs_autocrop.platforms import get_platform
+from obs_autocrop.vision.homography import warp_like_shader
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "experiments" / "out"
@@ -72,21 +73,7 @@ def grab(ws: ObsWs, source: str) -> np.ndarray:
 
 def expected(raw: np.ndarray, m: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """シェーダーと同じ計算の期待画像と、入力の範囲内にある画素のマスク。"""
-    h, w = raw.shape[:2]
-    u = (np.arange(w) + 0.5) / w
-    v = (np.arange(h) + 0.5) / h
-    uu, vv = np.meshgrid(u, v)
-    x = m[0, 0] * uu + m[0, 1] * vv + m[0, 2]
-    y = m[1, 0] * uu + m[1, 1] * vv + m[1, 2]
-    z = m[2, 0] * uu + m[2, 1] * vv + m[2, 2]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        sx, sy = x / z, y / z
-    inside = (z > 0) & (sx >= 0) & (sx <= 1) & (sy >= 0) & (sy <= 1)
-    map_x = (sx * w - 0.5).astype(np.float32)
-    map_y = (sy * h - 0.5).astype(np.float32)
-    out = cv2.remap(raw, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-    out[~inside] = 0
-    return out, inside
+    return warp_like_shader(raw, m)
 
 
 def compare(got: np.ndarray, exp: np.ndarray, inside: np.ndarray) -> dict:
