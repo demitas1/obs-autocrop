@@ -256,10 +256,17 @@ class PerspectiveResult:
 
 
 def solve(quad_px, width: int, height: int, *, target_mm: tuple[float, float] | None = None,
-          aspect_source: str = "target_mm", frames_for_aspect: list | None = None,
+          aspect_source: str = "markers", frames_for_aspect: list | None = None,
           aspect_verify: bool = False, verify_tol: float = 0.01, residual_warn: float = 0.01,
           max_skew_warn_deg: float = 25.0) -> PerspectiveResult:
-    """外側の四隅（画素中心の座標）から、補正後の矩形 R と行列 M を求める。"""
+    """外側の四隅（画素中心の座標）から、補正後の矩形 R と行列 M を求める。
+
+    縦横比 r の決め方（aspect_source）:
+    - "markers"（既定、2026-11-15）: マーカーが正方形であることから推定する。実寸の測定は不要。
+      frames_for_aspect（frames_from_detections の結果）が必要。
+    - "target_mm": 対象面の実寸 target_mm（W, H）の比を使う。
+    aspect_verify を指定し target_mm もある場合は、どちらのモードでも推定値と実寸の比を照合して警告する。
+    """
     quad_edge = to_edge(quad_px)
     check_quad(quad_edge)
     check_rotation(quad_edge)
@@ -274,17 +281,19 @@ def solve(quad_px, width: int, height: int, *, target_mm: tuple[float, float] | 
                             "紙の反り・浮き、検出不良、レンズ歪みの可能性があります")
     if aspect_source == "target_mm":
         if not target_mm:
-            raise PerspectiveError("target_mm（対象面の実寸 W, H）を指定してください")
+            raise PerspectiveError("target_mm（対象面の実寸 W, H）を指定してください"
+                                   "（測らない場合は aspect_source = \"markers\"）")
         aspect = target_mm[1] / target_mm[0]
-        if aspect_verify and estimate:
-            diff = estimate.aspect / aspect - 1
-            if abs(diff) > verify_tol:
-                warnings.append(f"target_mm の縦横比 {aspect:.4f} とマーカーからの推定 {estimate.aspect:.4f} が "
-                                f"{diff:+.2%} 違います（実寸の入力ミスや取り付けのずれの可能性）")
     elif aspect_source == "markers":
         aspect = estimate.aspect
     else:
         raise PerspectiveError(f"unknown aspect_source: {aspect_source!r}")
+    if aspect_verify and estimate and target_mm:
+        mm = target_mm[1] / target_mm[0]
+        diff = estimate.aspect / mm - 1
+        if abs(diff) > verify_tol:
+            warnings.append(f"target_mm の縦横比 {mm:.4f} とマーカーからの推定 {estimate.aspect:.4f} が "
+                            f"{diff:+.2%} 違います（実寸の入力ミス、マーカーの置き方、紙の浮きの可能性）")
     skew = skew_angles(quad_edge)
     if max(skew) > max_skew_warn_deg:
         warnings.append(f"傾きが大きい（最大 {max(skew):.1f}°）。補正で画質が落ちます。カメラを正対に近づけてください")

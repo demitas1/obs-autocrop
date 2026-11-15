@@ -123,7 +123,7 @@ def test_rectified_corners_land_on_rect(name):
     plane, pc = make_plane()
     frame = project(plane, pc, np.array(TRAPEZOIDS[name], float), noise=2.0)
     m, dets, quad = measure_scene(frame)
-    res = solve(quad, *FRAME, target_mm=(600, 340))
+    res = solve(quad, *FRAME, aspect_source="target_mm", target_mm=(600, 340))
     assert res.rect.h == round(res.rect.w * 340 / 600)
     # シェーダーと同じ計算で補正し、補正後の画像でマーカーを検出し直す
     rectified, inside = warp_like_shader(frame, np.array(res.matrix))
@@ -162,7 +162,8 @@ def test_solve_markers_and_verify_warning():
     assert res.aspect == pytest.approx(340 / 600, rel=0.005)
     assert res.estimate is not None and res.warnings == []
     # 実寸の入力ミス（600x400）を照合で検出する
-    bad = solve(quad, *FRAME, target_mm=(600, 400), aspect_verify=True, frames_for_aspect=frames)
+    bad = solve(quad, *FRAME, aspect_source="target_mm", target_mm=(600, 400), aspect_verify=True,
+                frames_for_aspect=frames)
     assert bad.aspect == pytest.approx(400 / 600)
     assert any("違います" in w for w in bad.warnings)
 
@@ -170,11 +171,11 @@ def test_solve_markers_and_verify_warning():
 def test_solve_requires_inputs_and_warns_on_skew():
     quad = [[420, 160], [1500, 200], [1620, 930], [300, 900]]
     with pytest.raises(PerspectiveError):
-        solve(quad, *FRAME)  # target_mm なし
+        solve(quad, *FRAME, aspect_source="target_mm")  # target_mm なし
     with pytest.raises(PerspectiveError):
-        solve(quad, *FRAME, aspect_source="markers")  # 角の情報なし
+        solve(quad, *FRAME)  # 既定は markers。角の情報なし
     steep = [[600, 100], [1300, 100], [1800, 1000], [100, 1000]]
-    res = solve(steep, *FRAME, target_mm=(600, 340), max_skew_warn_deg=20)
+    res = solve(steep, *FRAME, aspect_source="target_mm", target_mm=(600, 340), max_skew_warn_deg=20)
     assert any("傾き" in w for w in res.warnings)
     assert res.to_dict()["rect"]["w"] == res.rect.w
 
@@ -204,7 +205,7 @@ def test_large_rotation_is_rejected_not_misassigned():
     frame = project(plane, pc, _rotate(BASE, 50), noise=2.0)
     m, dets, quad = measure_scene(frame)
     with pytest.raises(PerspectiveError, match="回転"):
-        solve(quad, *FRAME, target_mm=(600, 340))
+        solve(quad, *FRAME, aspect_source="target_mm", target_mm=(600, 340))
 
 
 @pytest.mark.parametrize("k", [0.15, 0.3, 0.45])
@@ -224,3 +225,17 @@ def test_strong_keystone_with_larger_markers(k):
     rectified, _ = warp_like_shader(frames[0], np.array(res.matrix))
     _, _, quad2 = measure_scene(rectified)
     assert np.abs(np.array(quad2) - (rect_corners_edge(res.rect) - 0.5)).max() <= 1.0
+
+
+def test_default_is_markers_and_verify_works_in_markers_mode():
+    plane, pc = make_plane()
+    frame = project(plane, pc, np.array(TRAPEZOIDS["keystone"], float), noise=2.0)
+    m, dets, quad = measure_scene(frame)
+    frames = frames_from_detections(dets, m.positions)
+    res = solve(quad, *FRAME, frames_for_aspect=frames)  # 実寸なし
+    assert res.aspect_source == "markers"
+    assert res.aspect == pytest.approx(340 / 600, rel=0.005)
+    ok = solve(quad, *FRAME, frames_for_aspect=frames, target_mm=(600, 340), aspect_verify=True)
+    assert ok.aspect == res.aspect and ok.warnings == []          # 採用はマーカーの推定値のまま
+    bad = solve(quad, *FRAME, frames_for_aspect=frames, target_mm=(600, 400), aspect_verify=True)
+    assert bad.aspect == res.aspect and any("違います" in w for w in bad.warnings)
