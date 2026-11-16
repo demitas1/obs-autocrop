@@ -28,7 +28,7 @@ Phase 2 の `cli.py run` を作る前に、何度か繰り返して動作を確�
 | 4 | — | OBS を起動する | — |
 | 5 | 起動中 | 起動後もカメラのコントロールが保持されているかの確認（省略可） | `.venv/bin/python experiments/e4_aruco.py controls check` |
 | 6 | 起動中 | クロップを OBS に適用する（websocket） | `.venv/bin/python experiments/e4_aruco.py apply --yes` |
-| 7 | 起動中 | シーンアイテムを自動配置する | `.venv/bin/python experiments/e5_layout.py apply --yes [--anchor top-center] [--transition]` |
+| 7 | 起動中 | シーンアイテムを自動配置する | `.venv/bin/python experiments/e5_layout.py apply --yes --anchor top-center [--transition]` |
 | 8 | 起動中 | 目視で確認し、マーカーを片付ける | — |
 
 ### 1. マーカーの置き方
@@ -76,14 +76,15 @@ Phase 2 の `cli.py run` を作る前に、何度か繰り返して動作を確�
 ### 7. layout（シーンアイテムの自動配置）
 
 - クロップ後のソースを、アスペクト比を保ってキャンバスの内側に収まる最大の大きさ（縦または横がいっぱい）にし、アンカーに合わせる。
-  - `top-left`: 左上を左上に
-  - `top-right`: 右上を右上に
-  - `top-center`: 上辺中央を上辺中央に
-- `--anchor` を省略すると `config.toml` の `[layout] anchor` を使う。
+  - `top-center`: 上辺中央を上辺中央に（**この手順の既定。中央揃え**）
+  - `top-left`: 左上を左上に（左寄せ）
+  - `top-right`: 右上を右上に（右寄せ）
+  - 縦がいっぱいになる場合（クロップが横長でもキャンバスより縦長寄りの場合）は、それぞれ中央揃え・左寄せ・右寄せになる。例: 2110×1630 のクロップでは、表示範囲は `top-center` が (522, 0)–(3318, 2160)、`top-left` が (0, 0)–(2796, 2160)、`top-right` が (1044, 0)–(3840, 2160)。
+- この手順では `--anchor top-center` を指定する。省略すると `config.toml` の `[layout] anchor` を使う（左寄せ・右寄せにしたい場合は `--anchor` を変える）。
 - `status` で、変更せずに現在の値と配置後の値を確認できる。
 
 ```sh
-.venv/bin/python experiments/e5_layout.py status [--anchor top-right]
+.venv/bin/python experiments/e5_layout.py status --anchor top-center
 ```
 
 - 適用前の変換を `e5-transform-before-<時刻>.json`、シーンのスクリーンショットを `e5-<時刻>-scene.png` に保存する。
@@ -122,7 +123,7 @@ Phase 2 の `cli.py run` を作る前に、何度か繰り返して動作を確�
 | 5 | 起動中 | 射影補正のフィルタの状態確認（省略可） | `.venv/bin/python experiments/p1_perspective.py status` |
 | 6 | 起動中 | 行列と R を OBS に適用する（websocket） | `.venv/bin/python experiments/p3_perspective.py apply --yes` |
 | 7 | 起動中 | 補正の結果を確認する（再検出） | `.venv/bin/python experiments/p3_perspective.py verify --yes` |
-| 8 | 起動中 | シーンアイテムを自動配置する | `.venv/bin/python experiments/e5_layout.py apply --yes [--anchor top-center] [--transition]` |
+| 8 | 起動中 | シーンアイテムを自動配置する | `.venv/bin/python experiments/e5_layout.py apply --yes --anchor top-center [--transition]` |
 | 9 | 起動中 | 目視で確認し、マーカーを片付ける | — |
 
 ### 1. マーカーの置き方（と、任意で実寸）
