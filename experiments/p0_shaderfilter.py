@@ -1,12 +1,12 @@
 """P0: obs-shaderfilter の実機確認（PLAN.md 12章、15章）。
 
-    .venv/bin/python experiments/p0_shaderfilter.py create --yes [--source Image]
-    .venv/bin/python experiments/p0_shaderfilter.py settings [--source Image]
-    .venv/bin/python experiments/p0_shaderfilter.py check [--source Image]
-    .venv/bin/python experiments/p0_shaderfilter.py error-test --yes [--source Image]
-    .venv/bin/python experiments/p0_shaderfilter.py remove --yes [--source Image]
+    .venv/bin/python experiments/p0_shaderfilter.py create --yes --source NAME
+    .venv/bin/python experiments/p0_shaderfilter.py settings --source NAME
+    .venv/bin/python experiments/p0_shaderfilter.py check --source NAME
+    .venv/bin/python experiments/p0_shaderfilter.py error-test --yes --source NAME
+    .venv/bin/python experiments/p0_shaderfilter.py remove --yes --source NAME
 
-create    : テスト用のソース（既定 Image）に User-defined shader（shader_filter）を追加する。
+create    : テスト用のソース（--source。カメラ以外）に User-defined shader（shader_filter）を追加する。
             シェーダーは shaders/perspective.shader の本文を shader_text に書き込む（インライン）。
             シーンコレクションが変わるため、実行前にユーザーの確認を取ること。
 settings  : フィルタの設定（GetSourceFilter）を表示する。読み取りのみ。
@@ -223,7 +223,8 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("create", "settings", "check", "error-test", "remove"):
         p = sub.add_parser(name)
-        p.add_argument("--source", default="Image")
+        p.add_argument("--source", required=True,
+                       help="テスト用のソース名（カメラ以外の画像ソースなど。例: \"Image: bg: test 1\"）")
         if name in ("create", "error-test", "remove"):
             p.add_argument("--yes", action="store_true")
     args = ap.parse_args()
